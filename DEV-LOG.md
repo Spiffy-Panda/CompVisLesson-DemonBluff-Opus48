@@ -16,6 +16,18 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Adopt torch + ONNX (GPU verified on the Titan Xp); embedding-NN unblocked
+
+**Context:** Panda green-lit torch + ONNX, with **local GPU dev on the Titan Xp** (easier dev loop than round-tripping Colab). This also corrected an imprecision of mine.
+
+**Correction worth keeping:** I had lumped `onnxruntime` in with `torch` as "heavy." Wrong. `onnxruntime` (CPU) is ~15 MB, pure inference, needs no CUDA — it's the *light* runtime dep the research already calls for. `torch` is heavy by **wheel size** (the default CUDA wheel is ~2.5–3 GB because it **bundles its own CUDA runtime**) and by being the training-tier gateway — **not** because of the system CUDA toolkit, which pip-installed torch/onnxruntime do not use at all. What gates GPU use is the **driver**, not the toolkit. ("Irreversible" was also the wrong word — pip installs are reversible.)
+
+**What landed:** installed into `.venv` — `torch 2.7.1+cu118`, `torchvision 0.22.1+cu118` (chose the **cu118** build because the Titan Xp is **Pascal sm_61** and the newest CUDA wheels trim old archs), plus `onnx 1.22.0` + `onnxruntime 1.27.0` (CPU). Verified with a scrap smoke script that runs a **real GPU matmul** (not just `is_available()`, which can lie on a build missing sm_61 kernels): matmul succeeded → Pascal kernels present. numpy stayed 2.5.0 (no downgrade).
+
+**GPU now recorded** (CLAUDE.local had it "unverified — record the actual card"): **NVIDIA Titan Xp, 12 GB, Pascal sm_61**; driver 582.53 (CUDA-13.0-capable); toolkit 12.2. The dev box *is* the runtime-budget anchor.
+
+**Sync:** `requirements.txt` now pins `onnx`/`onnxruntime` as real deps and documents `torch`/`torchvision` as machine-specific dev-time installs (cu118 index command + CPU-only alternative). Decisions-table row added (supersedes the "embedding-NN deferred" note). Next: build the Stage 2 **embedding-NN identifier** — frozen MobileNetV3-Small → ONNX for CPU serving → cosine-NN over a re-embeddable gallery — evaluated head-to-head vs the classical ~40–60% baseline.
+
 ## 2026-06-22 — Lesson modules 01 (framing) + 09 (staying alive) → 8/10 authored
 
 Authored the two "bookend" modules: `Lesson-Plan/modules/01_framing.md` (the course's front door — why this project teaches CV through one genuinely-constrained real system; the constraints-as-characters from `PROJECT-PITCH.md`; a preview of the pipeline arc; cites the compute-budget research entry) and `09_staying-alive.md` (the art-swap-cheap thesis as shipped — localization HSV re-tune, gallery rebuild with zero training, font re-render for the future OCR; why the trained classifier was rejected for production; honest that drift/health monitoring is design-not-code). **Lesson plan now 8/10 authored** (00–05, 08, 09); only **06 (on-card OCR)** and **07 (state assembly/temporal)** remain, and both correctly await their unbuilt pipeline stages. Citations all trace to existing RESEARCH entries / PROJECT-PITCH / shipped-code docstrings; no new research or desync.

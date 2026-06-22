@@ -31,7 +31,18 @@ python-multipart==0.0.32            # multipart/form-data parsing for frame uplo
 httpx==0.28.1
 pytest==9.1.1
 
-# Deferred until a stage's research justifies it (conservative path):
-#   onnxruntime      — Stage 2/3 small-model serving on CPU (ONNX)
-#   torch/torchvision— Stage 2 embedding backbone export; Stage 3 recognizer training (dev-only, heavy)
+# --- model export + serving (ONNX) ---
+onnx==1.22.0                        # dev: export the embedding backbone to ONNX + validate it
+onnxruntime==1.27.0                 # runtime: serve the small backbone on CPU (no CUDA needed)
+
+# --- dev-time deep-learning stack (GPU, machine-specific — NOT auto-installed by this file) ---
+# torch is DEV-time only: export the frozen embedding backbone to ONNX, embed the gallery, and
+# (later) train the closed-vocab OCR recognizer. The RUNTIME path is ONNX-on-CPU (above), so torch
+# is not required to *serve* the pipeline. The CUDA build is hardware-specific: this project's dev
+# box is an NVIDIA Titan Xp (Pascal, sm_61); the cu118 wheels ship Pascal kernels and run under a
+# CUDA-13-capable driver. Verified working 2026-06-22 (torch 2.7.1+cu118, torchvision 0.22.1+cu118):
+#     .venv/Scripts/python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# CPU-only alternative (smaller, no GPU): pip install torch torchvision   # default PyPI build
+#
+# Still deferred:
 #   imagehash        — Stage 0 perceptual-hash dedup (or implement dHash in numpy)
