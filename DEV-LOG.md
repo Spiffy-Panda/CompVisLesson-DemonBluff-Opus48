@@ -16,6 +16,12 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Lesson modules 03 (resolution geometry) + 08 (REST) + Module 04 reconciliation
+
+Authored `Lesson-Plan/modules/03_resolution-agnostic-geometry.md` (the "never bake a resolution" principle as enforced in shipped code — `Resolution` from `image.shape`, `bbox_rel` fractions, thresholds relative to `min(W,H)`, relative→pixel only at the edge via `crop_relative`; the self-correcting resolution test; the 1280×720-vs-1920×1080 sampler-downscale story) and `08_rest-serving.md` (lifespan load-once onto `app.state`, plain-`def`-in-threadpool vs event-loop-blocking `async def`, versioned `GameStateSnapshot` + `schema_version`, the 0.1.0→0.2.0 bump as versioning-in-action; cites RESEARCH entry 5). **Inventory now 6/10 authored** (00, 02, 03, 04, 05, 08; planned: 01, 06, 07, 09 — 06/07 await the unbuilt OCR/temporal stages).
+
+**Reconciled a desync I introduced:** Module 04 was authored in parallel with the Stage 0 gate, so it claimed the state gate "is weak / no reliable gate" and that the `observed-board-layout.md` badge caveat was "not yet corrected." Both became false within the same round (the gate shipped; I added the caveat). Updated Module 04's failure-modes section to reflect that the gate is now handled upstream (`frame_state.py`) and the KB caveat is in place. Lesson: parallel authoring + implementation in one round can self-contradict — reconcile at the round's commit.
+
 ## 2026-06-22 — Lesson modules 02 (frame selection) + 05 (identification)
 
 Authored two more course modules, each grounded in shipped+tested code and matching the established skeleton/voice: `Lesson-Plan/modules/02_frame-selection.md` (the frame-selection design space + the shipped board/modal/menu gate, including the honest "absolute brightness failed → the center-vs-ring *ratio* is the invariant" debugging story; forward-references the still-owed stride/dedup) and `05_card-identification.md` (the four identification families on the retrain-cost axis, the shipped classical baseline, the honest ~40–60% face-up result, the `compareHist(zeros,*)==1.0` bug, and the deliberately-deferred embedding-NN upgrade). Cites existing RESEARCH entries 1 and 3 (no new research needed). `LESSON-PLAN.md` inventory now **4/10 authored** (00, 02, 04, 05). No desync.
