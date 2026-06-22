@@ -16,6 +16,10 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-21 — serve_site.py: flush startup banner
+
+One-line follow-up: flush the local server's startup banner so the URL prints immediately even when stdout is captured/redirected (the Claude Code preview-window case). Also confirmed the first Pages run's `startup_failure` was Pages-not-yet-enabled; after enabling the Actions source the `workflow_dispatch` run deployed cleanly and the site returns 200 at the project subdirectory.
+
 ## 2026-06-21 — git/GitHub init, local server, Pages deploy, landing site
 
 **Context:** Put the repo under version control and stand up a web surface. Motivation for the local server: the Claude Code desktop preview window can't render complex plain local HTML — it needs a real HTTP origin.

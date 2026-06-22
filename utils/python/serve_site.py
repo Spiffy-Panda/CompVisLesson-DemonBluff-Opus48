@@ -72,7 +72,7 @@ def main() -> int:
     print(f"  local:   http://localhost:{args.port}/")
     if lan:
         print(f"  network: http://{lan}:{args.port}/   (use this in the preview window)")
-    print(f"  bind:    {args.host}:{args.port}   (Ctrl+C to stop)")
+    print(f"  bind:    {args.host}:{args.port}   (Ctrl+C to stop)", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
