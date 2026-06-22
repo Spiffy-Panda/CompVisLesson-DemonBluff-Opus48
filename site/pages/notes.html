@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scratch &amp; Misc Notes — CompVis Lesson</title>
+  <meta name="description" content="Quick informal notes for the Demon Bluff CV lesson project." />
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <p class="crumb"><a href="../index.html">← CompVis Lesson — Demon Bluff</a></p>
+    <header class="site">
+      <p class="eyebrow">Scratchpad</p>
+      <h1>Scratch &amp; Misc Notes</h1>
+      <p class="tagline">Quick, informal notes — <strong>not</strong> course material. A place to
+        jot down whatever's handy. New misc files get appended here on request.</p>
+    </header>
+
+    <h2>Contents</h2>
+    <ul class="pages">
+      <li><a class="title" href="#plan-outline">Plan outline (rough)</a>
+        <div class="desc">A loose sketch of the pipeline stages and the calls already made.</div></li>
+    </ul>
+
+    <hr />
+
+    <h2 id="plan-outline">Plan outline (rough)</h2>
+    <p class="note">Loose notes only — the detailed, cited version lives in the repo
+      (<code>plans/PLAN-pipeline.md</code>, <code>PROJECT-PITCH.md</code>, <code>research/RESEARCH.md</code>).</p>
+
+    <div class="panel scratch">
+      <p><strong>Goal:</strong> read <em>Demon Bluff</em> game state from video frames only (no audio,
+        no game files) and serve it over a REST API. Runs on a mid-grade gaming PC. The course is the
+        real deliverable; the pipeline is the worked example.</p>
+    </div>
+
+    <h3>Pipeline stages</h3>
+    <div class="panel">
+      <p><strong>0 · Frame selection.</strong> Don't process the whole hour of video. Cheap CPU
+        cascade: low-stride decode → drop near-duplicate frames (perceptual hash) → gate
+        "board vs. menu vs. modal". No runtime model.</p>
+      <p><strong>1 · Localization.</strong> Find the cards by <em>geometry</em>, not a trained
+        detector — the UI layout is stable (radial ring + numbered position badges) even when card
+        art changes. Classical, fast, survives art swaps.</p>
+      <p><strong>2 · Identification.</strong> Name each card with a small embedding + nearest-neighbor
+        over a per-art reference gallery (re-fit by swapping reference images, no retraining), with
+        the card's name-label text as an OCR cross-check.</p>
+      <p><strong>3 · On-card reading.</strong> Tiny custom recognizer for the closed glyph set (role
+        names, small numbers); general OCR only as a fallback / dev tool.</p>
+      <p><strong>4 · State assembly.</strong> Merge per-card reads into one snapshot; smooth across
+        frames (modals occlude the board, so single frames lie sometimes).</p>
+      <p><strong>5 · REST service.</strong> FastAPI, models loaded once, versioned JSON snapshot with
+        the resolution read from the media (never hard-coded).</p>
+    </div>
+
+    <h3>Calls already made</h3>
+    <div class="panel">
+      <ul>
+        <li>Heavy models are <strong>dev-only</strong>; runtime models stay small
+          (≈≤30M params) and train on a Titan XP / free Colab.</li>
+        <li>Card art is assumed swappable → every recognizer must be cheap to retrain.</li>
+        <li>Never bake in a resolution; never open the raw sample videos directly.</li>
+        <li>44 roles + mechanics harvested from the wiki (cached locally, once).</li>
+        <li>Real footage has streamer overlays + occluding modals → robustness matters.</li>
+      </ul>
+    </div>
+
+    <h3>Still open</h3>
+    <div class="panel scratch">
+      <ul>
+        <li>How much state to recover by tracking across frames vs. re-reading each frame.</li>
+        <li>Whether a few wiki entries (<code>Minion</code>, <code>Puppet</code>, <code>Twin Minion</code>)
+          are distinct card faces or just rules pages.</li>
+        <li>The web-course delivery stack (this site is the seed of it).</li>
+      </ul>
+    </div>
+
+    <footer class="site">
+      <p>Rough notes. Subject to change without ceremony.</p>
+    </footer>
+  </div>
+</body>
+</html>

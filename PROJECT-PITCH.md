@@ -1,0 +1,56 @@
+# PROJECT-PITCH — design narrative
+
+The single long-arc design document. Why this project exists, the shape it is taking, and a running decisions table. Supersede entries through the table rather than rewriting history.
+
+## Why this exists
+
+Most computer-vision teaching uses toy datasets and classroom-clean examples that hide the decisions that actually matter in practice: which technique to reach for, when a cheap method beats a fancy one, how to stay within a real compute budget, and how to keep a recognizer alive when the inputs shift under you. This project refuses that artificiality. It teaches modern CV by building **one genuinely constrained system** and showing the reasoning at every fork.
+
+The system: read *Demon Bluff* **game state from video frames only** — no audio, no save files, no API into the game — and expose that state over a **REST API**. *Demon Bluff* is a social-deduction game (think *One Night Ultimate Werewolf* / Mafia) whose board is a layout of role **cards** (villager / minion / outcast / demon). Reading the board means: find the cards, identify each one, read the surrounding text/number/state, and assemble a structured snapshot.
+
+## The shape it is taking
+
+- **Primary deliverable: the lesson plan.** A web-based course. Every module is anchored to a real decision made while building the pipeline, with the supporting research cited from `research/RESEARCH.md`. Techniques appear because the problem demanded them, never to round out a curriculum.
+- **The pipeline is the worked example.** It is real code in `src/`, documented in `CodeDocs/`, planned in `plans/`. Its job is to be correct *and* to be explainable.
+- **Knowledge is cached, not re-derived.** Game facts come from the wiki, pulled once into `knowledge-base/`. Lessons we learn (what worked, what didn't, gotchas) live alongside them.
+- **Research gates technique choice.** Before any non-trivial method is adopted, the professional/academic basis is logged with a trust rating.
+
+## Constraints that shape the design
+
+| Constraint | Design consequence |
+|------------|--------------------|
+| Runtime = mid-grade gaming PC | Inference-time models must be small/fast; train on a single Titan XP or free Colab. Heavy models are dataset/debug-only. |
+| Video only (no audio/state) | Everything is inferred from pixels in frames; temporal cues across frames are fair game, audio is not. |
+| Samples are huge (~370 MB, ~1 h) | A frame-selection stage is mandatory; nothing downstream sees raw video, only chosen frames. |
+| No baked-in resolution | Geometry is derived from the media; the pipeline is resolution-agnostic. |
+| Card art may be swapped | Card recognition is built to be re-fit cheaply when the art set changes. |
+| Teaching-first | Explainability and honest trade-off discussion outrank cleverness. |
+
+## Research-backed direction (provisional, 2026-06-21)
+
+The first research pass (`research/RESEARCH.md`, six A/B-sourced entries) plus inspection of the sample frames resolved most of the open forks. Leanings, not yet code:
+
+- **Frame selection** → cheap classical CPU cascade, **no runtime model**: low fixed-stride decode (fps read from media) → perceptual-hash dedup → template/HSV "board vs. menu/modal" gate. Scene-detection/VLM scoring is dev-only.
+- **Card localization** → **classical, layout-driven** off art-independent landmarks (the radial ring, numbered position badges, UI chrome). Immune to art swaps by construction; ~10 ms CPU; **no detector trained** unless footage proves the layout unparseable.
+- **Card identification** → **small frozen embedding backbone + nearest-neighbor over a per-art reference gallery** (collapses to prototypical). Art swap = re-embed ~44 references, **zero gradient steps**. Name-label **OCR cross-check** corroborates. The trained classifier is the approach we *reject* for production, for its retrain cost.
+- **On-card / HUD reading** → **tiny custom recognizer over the closed glyph set** (role names, 1–2-digit counts), trained on rendered crops; PaddleOCR-mobile (ONNX) as a narrow fallback. General OCR (Tesseract/EasyOCR) is dev-only.
+- **Serving** → **FastAPI**, models loaded once in `lifespan` onto `app.state`, inference in plain `def` (threadpool), versioned Pydantic `GameStateSnapshot` with `resolution` from media; **ONNX Runtime on CPU**; no batching.
+- **Compute budget anchor** → runtime models ≤~30 M params / ≤~100 MB (nano-detector + small-classifier class); foundation models (SAM/Grounding-DINO/large ViT) are dev-only. Train FP32 on Titan XP / Colab T4; no mixed-precision/INT8 on Pascal.
+
+### Still open
+
+- **Temporal logic**: how much state to recover by tracking across frames vs. re-reading each frame cold (sample shows transient modals that occlude — argues for temporal smoothing).
+- **Course delivery** stack: how the web-based lesson is built and (if ever) published — gated by Rule 6.
+- Whether `Minion` / `Puppet` / `Twin Minion` category entries are distinct recognizable faces or base/mechanic pages (verify when building the gallery).
+
+## Decisions table
+
+| Date | Decision | Why | Supersedes |
+|------|----------|-----|------------|
+| 2026-06-21 | Mixed repo: code-doc tier and deliverable-pairing tier both live | Course needs the pipeline; pipeline needs cached game knowledge | — |
+| 2026-06-21 | Sample videos in-repo under gitignored `dataset/raw-video/` | Self-contained without risking 740 MB in git history | — |
+| 2026-06-21 | Lesson plan is the primary deliverable; pipeline is its worked example | Teaching-first mandate | — |
+| 2026-06-21 | Localization is classical/layout-based, not a trained detector (provisional) | UI layout stable across art swaps; classical ~12 ms vs YOLO ~19 ms and needs no labels; survives art swaps by construction (`research/RESEARCH.md` localization) | — |
+| 2026-06-21 | Identification is embedding-NN over a per-art reference gallery, not a trained classifier (provisional) | Art swap re-fits with new reference images and zero training; classifier would need relabel+retrain (`research/RESEARCH.md` identification) | — |
+| 2026-06-21 | On-card/HUD text via a tiny closed-vocabulary recognizer; general OCR dev-only (provisional) | Cards have a known fixed glyph set; custom CRNN/CNN >95%, sub-ms, retrains by re-rendering the font (`research/RESEARCH.md` OCR) | — |
+| 2026-06-21 | Runtime model budget ≤~30 M params / ≤~100 MB; foundation models dev-only | Nano-detector/small-classifier class runs real-time on a 3060 and 10–30 FPS CPU; SAM/G-DINO violate the budget (`research/RESEARCH.md` compute budget) | — |

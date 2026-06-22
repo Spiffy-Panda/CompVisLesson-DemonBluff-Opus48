@@ -1,0 +1,52 @@
+# --- machine-local & identity (Rule 7) -------------------------------------
+CLAUDE.local.md
+
+# --- throwaway scripts (Rule 1) --------------------------------------------
+scrap_scripts/
+
+# --- large-file dataset: keep tracked READMEs, ignore the heavy media ------
+dataset/raw-video/
+dataset/**/*.mp4
+dataset/**/*.mov
+dataset/**/*.mkv
+dataset/**/*.avi
+dataset/**/*.png
+dataset/**/*.jpg
+dataset/**/*.jpeg
+dataset/**/*.npy
+dataset/**/*.npz
+# but never ignore the explanatory READMEs / placeholders
+!dataset/**/README.md
+!dataset/**/.gitkeep
+
+# --- third-party reference inputs, bulk/verbatim (Rule 6) ------------------
+# Card art and raw wiki caches are reference inputs for the pipeline, not
+# redistributable content. Transcribed/transformative .md under knowledge-base/
+# stays tracked; bulk verbatim fetches and downloaded art do not.
+knowledge-base/card-art/*
+knowledge-base/wiki/_raw_cache/
+!knowledge-base/card-art/README.md
+
+# --- trained model artifacts (can be large; regenerable) -------------------
+*.pt
+*.pth
+*.onnx
+*.engine
+*.tflite
+*.weights
+checkpoints/
+runs/
+
+# --- python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+
+# --- os / editor junk ------------------------------------------------------
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/

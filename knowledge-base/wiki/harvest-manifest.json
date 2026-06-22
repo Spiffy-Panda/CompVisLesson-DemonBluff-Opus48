@@ -1,0 +1,456 @@
+{
+  "roles": {
+    "villager": {
+      "Alchemist": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Alchemist.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Alchemist",
+        "art_files": [
+          "Alchemist-Skin-Christmas.png",
+          "Alchemist.png"
+        ]
+      },
+      "Architect": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Architect.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Architect",
+        "art_files": [
+          "Architect-Skin-Halloween.png",
+          "Architect.png"
+        ]
+      },
+      "Baker": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Baker.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Baker",
+        "art_files": [
+          "Baker-Skin-Halloween.png",
+          "Baker.png"
+        ]
+      },
+      "Bard": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Bard.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Bard",
+        "art_files": [
+          "Bard-Skin-Halloween.png",
+          "Bard.png"
+        ]
+      },
+      "Bishop": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Bishop.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Bishop",
+        "art_files": [
+          "Bishop.png"
+        ]
+      },
+      "Confessor": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Confessor.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Confessor",
+        "art_files": [
+          "Confessor-Skin-Christmas.png",
+          "Confessor-Skin-Christmas_Dizzy.png",
+          "Confessor.png"
+        ]
+      },
+      "Dreamer": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Dreamer.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Dreamer",
+        "art_files": [
+          "Dreamer.png"
+        ]
+      },
+      "Druid": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Druid.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Druid",
+        "art_files": [
+          "Druid.png"
+        ]
+      },
+      "Empress": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Empress.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Empress",
+        "art_files": [
+          "Empress-Skin-Christmas.png",
+          "Empress-Skin-Halloween.png",
+          "Empress.png"
+        ]
+      },
+      "Enlightened": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Enlightened.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Enlightened",
+        "art_files": [
+          "Enlightened.png"
+        ]
+      },
+      "Fortune Teller": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Fortune_Teller.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Fortune_Teller",
+        "art_files": [
+          "Fortune_Teller-Skin-Halloween.png",
+          "Fortune_Teller.png"
+        ]
+      },
+      "Gemcrafter": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Gemcrafter.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Gemcrafter",
+        "art_files": [
+          "Gemcrafter.png"
+        ]
+      },
+      "Hunter": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Hunter.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Hunter",
+        "art_files": [
+          "Hunter.png",
+          "Old_Hunter.png"
+        ]
+      },
+      "Investigator": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Investigator.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Investigator",
+        "art_files": [
+          "Investigator.png"
+        ]
+      },
+      "Jester": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Jester.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Jester",
+        "art_files": [
+          "Jester-Skin-Christmas.png",
+          "Jester.png"
+        ]
+      },
+      "Judge": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Judge.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Judge",
+        "art_files": [
+          "Judge.png"
+        ]
+      },
+      "Knight": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Knight.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Knight",
+        "art_files": [
+          "Knight-Skin-Halloween.png",
+          "Knight.png"
+        ]
+      },
+      "Knitter": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Knitter.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Knitter",
+        "art_files": [
+          "Knitter.png"
+        ]
+      },
+      "Lover": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Lover.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Lover",
+        "art_files": [
+          "Lover-Skin-Halloween.png",
+          "Lover.png"
+        ]
+      },
+      "Medium": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Medium.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Medium",
+        "art_files": [
+          "Medium-Skin-Halloween.png",
+          "Medium-Skin-Whisper.png",
+          "Medium.png"
+        ]
+      },
+      "Oracle": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Oracle.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Oracle",
+        "art_files": [
+          "Oracle.png"
+        ]
+      },
+      "Poet": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Poet.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Poet",
+        "art_files": [
+          "Poet.png",
+          "What-you-lookin-for.png"
+        ]
+      },
+      "Scout": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Scout.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Scout",
+        "art_files": [
+          "Scout.png"
+        ]
+      },
+      "Slayer": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Slayer.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Slayer",
+        "art_files": [
+          "AutisticGert.png",
+          "Slayer.png"
+        ]
+      },
+      "Witness": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\villager\\Witness.json",
+        "art_dir": "knowledge-base\\card-art\\villager\\Witness",
+        "art_files": [
+          "Witness.png"
+        ]
+      }
+    },
+    "minion": {
+      "Chancellor": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\minion\\Chancellor.json",
+        "art_dir": "knowledge-base\\card-art\\minion\\Chancellor",
+        "art_files": [
+          "Chancellor-Skin-Business.png",
+          "Chancellor.png"
+        ]
+      },
+      "Minion": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\minion\\Minion.json",
+        "art_dir": "knowledge-base\\card-art\\minion\\Minion",
+        "art_files": [
+          "Minion.png"
+        ]
+      },
+      "Poisoner": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\minion\\Poisoner.json",
+        "art_dir": "knowledge-base\\card-art\\minion\\Poisoner",
+        "art_files": [
+          "Poisoner.png"
+        ]
+      },
+      "Puppet": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\minion\\Puppet.json",
+        "art_dir": "knowledge-base\\card-art\\minion\\Puppet",
+        "art_files": [
+          "Puppet.png"
+        ]
+      },
+      "Puppeteer": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\minion\\Puppeteer.json",
+        "art_dir": "knowledge-base\\card-art\\minion\\Puppeteer",
+        "art_files": [
+          "Puppeteer.png"
+        ]
+      },
+      "Shaman": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\minion\\Shaman.json",
+        "art_dir": "knowledge-base\\card-art\\minion\\Shaman",
+        "art_files": [
+          "Shaman-Skin-Star.png",
+          "Shaman.png"
+        ]
+      },
+      "Twin Minion": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\minion\\Twin_Minion.json",
+        "art_dir": "knowledge-base\\card-art\\minion\\Twin_Minion",
+        "art_files": [
+          "Twin_Minion.png"
+        ]
+      },
+      "Werewolf": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\minion\\Werewolf.json",
+        "art_dir": "knowledge-base\\card-art\\minion\\Werewolf",
+        "art_files": [
+          "Werewolf.png"
+        ]
+      },
+      "Witch": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\minion\\Witch.json",
+        "art_dir": "knowledge-base\\card-art\\minion\\Witch",
+        "art_files": [
+          "Witch.png"
+        ]
+      }
+    },
+    "outcast": {
+      "Bombardier": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\outcast\\Bombardier.json",
+        "art_dir": "knowledge-base\\card-art\\outcast\\Bombardier",
+        "art_files": [
+          "Bombardier.png"
+        ]
+      },
+      "Doppelganger": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\outcast\\Doppelganger.json",
+        "art_dir": "knowledge-base\\card-art\\outcast\\Doppelganger",
+        "art_files": [
+          "Doppelganger.png"
+        ]
+      },
+      "Drunk": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\outcast\\Drunk.json",
+        "art_dir": "knowledge-base\\card-art\\outcast\\Drunk",
+        "art_files": [
+          "Drunk.png"
+        ]
+      },
+      "Lycanthrope": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\outcast\\Lycanthrope.json",
+        "art_dir": "knowledge-base\\card-art\\outcast\\Lycanthrope",
+        "art_files": [
+          "Lycanthrope.png"
+        ]
+      },
+      "Plague Doctor": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\outcast\\Plague_Doctor.json",
+        "art_dir": "knowledge-base\\card-art\\outcast\\Plague_Doctor",
+        "art_files": [
+          "Plague_Doctor.png"
+        ]
+      },
+      "Rambler": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\outcast\\Rambler.json",
+        "art_dir": "knowledge-base\\card-art\\outcast\\Rambler",
+        "art_files": [
+          "Rambler-Skin-Angry.png",
+          "Rambler.png"
+        ]
+      },
+      "Wretch": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\outcast\\Wretch.json",
+        "art_dir": "knowledge-base\\card-art\\outcast\\Wretch",
+        "art_files": [
+          "Wretch-Skin-Christmas.png",
+          "Wretch.png"
+        ]
+      }
+    },
+    "demon": {
+      "Baa": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\demon\\Baa.json",
+        "art_dir": "knowledge-base\\card-art\\demon\\Baa",
+        "art_files": [
+          "Baa-Skin-Feared.png",
+          "Baa.png"
+        ]
+      },
+      "Lilis": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\demon\\Lilis.json",
+        "art_dir": "knowledge-base\\card-art\\demon\\Lilis",
+        "art_files": [
+          "Lilis-Skin-Halloween.png",
+          "Lilis.png"
+        ]
+      },
+      "Pooka": {
+        "cache": "knowledge-base\\wiki\\_raw_cache\\demon\\Pooka.json",
+        "art_dir": "knowledge-base\\card-art\\demon\\Pooka",
+        "art_files": [
+          "Pooka.png"
+        ]
+      }
+    }
+  },
+  "knowledge": {
+    "Gameplay": [
+      {
+        "title": "Game Modes",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Gameplay\\Game_Modes.json"
+      },
+      {
+        "title": "Keywords",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Gameplay\\Keywords.json"
+      },
+      {
+        "title": "Night",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Gameplay\\Night.json"
+      },
+      {
+        "title": "Oracle (Gameplay)",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Gameplay\\Oracle__Gameplay_.json"
+      },
+      {
+        "title": "Patch Notes",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Gameplay\\Patch_Notes.json"
+      },
+      {
+        "title": "Start Order",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Gameplay\\Start_Order.json"
+      }
+    ],
+    "Relics": [
+      {
+        "title": "Bottled Curse",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Relics\\Bottled_Curse.json"
+      },
+      {
+        "title": "Broken Seal",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Relics\\Broken_Seal.json"
+      },
+      {
+        "title": "Evil Mask",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Relics\\Evil_Mask.json"
+      },
+      {
+        "title": "Gilded Diadem",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Relics\\Gilded_Diadem.json"
+      },
+      {
+        "title": "Grave Flame",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Relics\\Grave_Flame.json"
+      },
+      {
+        "title": "Ritual Knife",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Relics\\Ritual_Knife.json"
+      },
+      {
+        "title": "Secret Tome",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Relics\\Secret_Tome.json"
+      },
+      {
+        "title": "Severed Braid",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Relics\\Severed_Braid.json"
+      }
+    ],
+    "Unused Roles": [
+      {
+        "title": "Acrobat",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Acrobat.json"
+      },
+      {
+        "title": "Arbiter",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Arbiter.json"
+      },
+      {
+        "title": "Architect (Old)",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Architect__Old_.json"
+      },
+      {
+        "title": "Bounty Hunter",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Bounty_Hunter.json"
+      },
+      {
+        "title": "Marionette",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Marionette.json"
+      },
+      {
+        "title": "Mathematician",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Mathematician.json"
+      },
+      {
+        "title": "Mutant",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Mutant.json"
+      },
+      {
+        "title": "Saint",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Saint.json"
+      },
+      {
+        "title": "Sapper",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Sapper.json"
+      },
+      {
+        "title": "Skinwalker",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Skinwalker.json"
+      },
+      {
+        "title": "Spy",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Spy.json"
+      },
+      {
+        "title": "Useless Villager",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Useless_Villager.json"
+      }
+    ]
+  },
+  "skipped_images": []
+}

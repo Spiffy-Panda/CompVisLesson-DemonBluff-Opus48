@@ -1,0 +1,95 @@
+/* CompVis Lesson — Demon Bluff : shared site styles.
+   Served identically by the local dev server (utils/python/serve_site.py) and
+   by GitHub Pages. All links are relative so the site works both at "/" (local)
+   and at "/<repo>/" (project Pages subdirectory). */
+
+:root {
+  --bg: #0e0d12;
+  --bg-panel: #17151d;
+  --bg-panel-2: #1f1c28;
+  --border: #2e2a3a;
+  --text: #e8e6ef;
+  --muted: #a09bb3;
+  --accent: #c0392b;        /* demon red */
+  --accent-2: #8e7cc3;      /* arcane violet */
+  --link: #b9a7e6;
+  --radius: 12px;
+  --maxw: 880px;
+  font-size: 16px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 600px at 50% -10%, #1b1726 0%, var(--bg) 60%);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+}
+
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+
+header.site {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+header.site .eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: var(--accent-2);
+  margin: 0 0 0.4rem;
+}
+header.site h1 { margin: 0; font-size: 1.9rem; line-height: 1.2; }
+header.site p.tagline { color: var(--muted); margin: 0.5rem 0 0; }
+
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.crumb { font-size: 0.85rem; color: var(--muted); margin-bottom: 1.25rem; }
+.crumb a { color: var(--muted); }
+
+h2 { font-size: 1.25rem; margin: 2rem 0 0.75rem; }
+h3 { font-size: 1.02rem; margin: 1.5rem 0 0.4rem; color: var(--accent-2); }
+
+ul.pages { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: 0.85rem; }
+ul.pages li {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+ul.pages li:hover { border-color: var(--accent-2); transform: translateY(-1px); }
+ul.pages li a.title { font-weight: 600; font-size: 1.05rem; }
+ul.pages li .desc { color: var(--muted); font-size: 0.92rem; margin-top: 0.2rem; }
+ul.pages li .tag {
+  display: inline-block; font-size: 0.68rem; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 0.05rem 0.55rem; margin-left: 0.5rem; vertical-align: middle;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+  margin: 1rem 0;
+}
+.panel.scratch { background: var(--bg-panel-2); }
+
+.note { color: var(--muted); font-size: 0.9rem; }
+code, pre { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+code { background: #221f2c; padding: 0.1rem 0.35rem; border-radius: 5px; font-size: 0.88em; }
+pre { background: #221f2c; border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem; overflow-x: auto; }
+
+hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+
+footer.site {
+  margin-top: 3rem; padding-top: 1.25rem; border-top: 1px solid var(--border);
+  color: var(--muted); font-size: 0.82rem;
+}
+.status-dot { color: var(--accent); }
