@@ -16,6 +16,14 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — End-to-end CLI runner (capstone): the pipeline reads the board
+
+Promoted a durable runner to `utils/python/run_pipeline.py` (Rule 1 promotion: descriptive name, repo-root-anchored, **row added to `utils/README.md`**). It runs the full pipeline offline (no HTTP) on sampled PNGs: builds the gallery once, then per frame does gate → localize (board only) → identify, prints a readable summary (frame_state + per-card identity@confidence), writes snapshot JSON, and (with `--overlay`) saves annotated PNGs to the gitignored `dataset/pipeline-out/`. Flags: `--frames`, `--out`, `--overlay`, `--limit`, `--no-gallery`.
+
+**Verified end-to-end (I viewed an overlay myself):** board frames render boxes + identity labels + a `board` banner; modal frames (`Sample1_000`, `Sample2_000`) gate to `modal` with **zero** boxes; the partial-modal `Sample1_006` is correctly treated as `board` (peripheral cards still found). Real identities surface on face-up cards — `Wretch@0.80`, `Baa@0.69/0.70`, `Confessor`, `Hunter`, `Druid`, `Scout`, `Fortune_Teller`, `Doppelganger` — with face-down cards correctly `unknown`, consistent with the honest ~40–60% face-up baseline. This is the reproducible hands-on artifact the lesson modules point at.
+
+**Notes:** 14 light CLI unit tests (helpers only, 0.31s — deliberately no gallery build, so the slow-suite issue isn't worsened). Fixed a Windows cp1252 crash (a `→` in the argparse help string; module docstring keeps the arrows since argparse doesn't print it). `dataset/pipeline-out/` added to `.gitignore`.
+
 ## 2026-06-22 — Stage 2: classical identification baseline (embedding-NN deferred)
 
 **Context:** Cards were being localized but not named (`identify` was a stub). Built the classical identification baseline per the conservative directive — opencv+numpy only, **no torch/onnxruntime, no model download** — explicitly deferring the research-preferred embedding-NN to a later, heavier round.

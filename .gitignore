@@ -18,6 +18,8 @@ dataset/**/*.npz
 # but never ignore the explanatory READMEs / placeholders
 !dataset/**/README.md
 !dataset/**/.gitkeep
+# generated pipeline output (overlays + snapshot JSON) — regenerable, never tracked
+dataset/pipeline-out/
 
 # --- third-party reference inputs, bulk/verbatim (Rule 6) ------------------
 # Card art and raw wiki caches are reference inputs for the pipeline, not
