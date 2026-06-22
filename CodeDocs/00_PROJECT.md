@@ -43,7 +43,8 @@ Each arrow is a design fork the lesson plan will teach, with the chosen techniqu
 ## Status
 
 **Stage 3 (embedding-NN identifier) landed 2026-06-22.**
-`src/dbcv/` now contains the full package through Stage 3. 81 tests pass.
+`src/dbcv/` now contains the full package through Stage 3. 81 tests pass in ~23 s
+(process-level gallery/embedder memoization added 2026-06-22; was ~295 s).
 
 - Stage 0 (frame-state gate): `frame_state.py` — `classify_frame_state`
   correctly classifies all labeled board and modal frames (7/7, 100%).

@@ -33,7 +33,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from dbcv.api import app
-from dbcv.embed import EMBEDDING_DIM, OnnxEmbedder
+from dbcv.embed import EMBEDDING_DIM, OnnxEmbedder, get_onnx_embedder
 from dbcv.gallery import EmbeddingGallery, build_embedding_gallery, build_gallery
 from dbcv.identify import classify_crop_embedding, make_embedding_identifier
 from dbcv.schema import GameStateSnapshot
@@ -55,13 +55,13 @@ _PREFERRED_STEM = "Sample1_003"
 
 @pytest.fixture(scope="module")
 def embedder() -> OnnxEmbedder:
-    """Load the ONNX embedder once for the module."""
+    """Load the ONNX embedder once for the module (or reuse the process-level cache)."""
     if not _ONNX_PATH.exists():
         pytest.skip(
             f"ONNX model not found: {_ONNX_PATH}\n"
             "Run: .venv\\Scripts\\python.exe utils\\python\\export_backbone.py"
         )
-    return OnnxEmbedder(_ONNX_PATH)
+    return get_onnx_embedder(_ONNX_PATH)
 
 
 @pytest.fixture(scope="module")

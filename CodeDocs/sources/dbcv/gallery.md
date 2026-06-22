@@ -3,6 +3,8 @@
 **Status:** active — Stage 2 classical gallery + **Stage 3 embedding gallery** (updated 2026-06-22).
 Loads ~67 PNGs, precomputes HSV histograms + ORB descriptors + thumbnails (classical),
 and now also builds per-identity prototype embeddings (embedding-NN).
+Both builders are **memoized** at the process level (module-level dict caches) — see
+`_GALLERY_CACHE` and `_EMBED_GALLERY_CACHE` below.
 
 **Purpose:** Builds and holds the reference galleries for card identification:
 - Classical (`Gallery`): HSV histograms + ORB descriptors. Called by `classify_crop`.
@@ -68,6 +70,11 @@ functionally identical; see `_IDENTITY_ALIASES` dict).
 
 **Raises:** `FileNotFoundError` if `art_root` doesn't exist; `ValueError` if
 no PNGs found.
+
+**Memoization:** Results are cached in `_GALLERY_CACHE` (module-level dict,
+keyed by resolved `art_root` Path).  Subsequent calls with the same `art_root`
+return the cached object immediately (~0 ms) without re-reading PNGs.
+An art swap requires a process restart to clear the cache.
 
 ### Internal helpers (module-private, used by `identify.py`)
 
@@ -146,6 +153,11 @@ single-embedding lookup. For ~44 classes with 1-2 references each the gain
 is modest but the computation is free.
 
 **Does NOT import torch.** Uses only OnnxEmbedder (onnxruntime) + numpy.
+
+**Memoization:** Results are cached in `_EMBED_GALLERY_CACHE` (module-level
+dict, keyed by `(resolved art_root, embedder._onnx_path)`).  Subsequent calls
+with the same art root and same ONNX model return the cached object immediately.
+A model or art swap requires a process restart to clear the cache.
 
 ---
 

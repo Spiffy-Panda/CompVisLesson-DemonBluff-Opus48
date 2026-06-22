@@ -22,7 +22,7 @@ Runs at startup (before first request) and shutdown.  Sets on `application.state
 - `settings` — `Settings` instance from `get_settings()`
 - `gallery` — `Gallery` object from `build_gallery()` (67 references, 43 townees)
 - `classical_identifier` — callable from `make_gallery_identifier(gallery)` (Stage 2, retained as fallback)
-- `embedder` — `OnnxEmbedder` instance (loaded from `models/mobilenetv3_small_embed.onnx`)
+- `embedder` — `OnnxEmbedder` instance via `get_onnx_embedder()` (process-cached; loaded from `models/mobilenetv3_small_embed.onnx`)
 - `embed_gallery` — `EmbeddingGallery` from `build_embedding_gallery()` (43 prototypes, [43,576] matrix)
 - `identifier` — `make_embedding_identifier(embedder, embed_gallery)` (Stage 3, **the default**)
 

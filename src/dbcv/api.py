@@ -41,7 +41,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from dbcv.config import get_settings
-from dbcv.embed import OnnxEmbedder
+from dbcv.embed import OnnxEmbedder, get_onnx_embedder
 from dbcv.gallery import build_embedding_gallery, build_gallery
 from dbcv.identify import make_embedding_identifier, make_gallery_identifier
 from dbcv.pipeline import run_pipeline
@@ -100,7 +100,7 @@ async def lifespan(application: FastAPI):
     # If the ONNX file is missing (not yet exported), fall back gracefully to
     # the classical identifier with a warning.  Run export_backbone.py to generate.
     try:
-        embedder = OnnxEmbedder()
+        embedder = get_onnx_embedder()
         embed_gallery = build_embedding_gallery(gallery, embedder)
         application.state.embedder = embedder
         application.state.embed_gallery = embed_gallery

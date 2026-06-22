@@ -16,6 +16,21 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Test suite speed: ~295 s → 23.5 s via process-level memoization
+
+**Context:** After Stage 3 landed the 81-test suite had ballooned to ~295 s. The root cause (already diagnosed) was that the two expensive builders — `build_gallery()` (~10 s, loads 67 PNGs + computes HSV histograms + ORB descriptors) and `OnnxEmbedder` + `build_embedding_gallery()` (~2–3 s, loads ONNX session + embeds all 67 references) — were being re-run on every test module that owned a `scope="module"` fixture AND on every `TestClient(app)` that triggered the FastAPI `lifespan`. With five test modules each pulling the lifespan + fixtures, the total reached ~7+ full rebuilds.
+
+**Fix applied:** Process-level memoization (module-level dict caches) in `src/dbcv/gallery.py` and `src/dbcv/embed.py`:
+- `_GALLERY_CACHE: dict[Path, Gallery]` in `gallery.py` — `build_gallery(art_root)` returns the cached result on the second call (key = resolved `art_root`).
+- `_EMBEDDER_CACHE: dict[Path, OnnxEmbedder]` in `embed.py` — new `get_onnx_embedder(onnx_path)` factory returns a cached `OnnxEmbedder` instance (key = resolved ONNX path). `api.py` lifespan updated to call `get_onnx_embedder()` instead of `OnnxEmbedder()`.
+- `_EMBED_GALLERY_CACHE: dict[tuple, EmbeddingGallery]` in `gallery.py` — `build_embedding_gallery(classical_gallery, embedder, art_root)` returns the cached result (key = `(art_root, embedder._onnx_path)`). Requires `OnnxEmbedder` to store `self._onnx_path` (added to `embed.py`).
+
+**Why memoization, not session-scoped fixtures:** The lifespan path (TestClient) bypasses pytest fixture scoping entirely — it runs its own build every time a new TestClient is created. Making the builders cheap to call a second time removes the cost regardless of whether the caller is a fixture, the lifespan, or a helper function inside a test body. The cache is also correct in production (build once at startup; an art/model swap requires a restart which clears the module-level dict naturally).
+
+**Idempotency test:** `test_gallery_rebuild_is_idempotent` calls `build_gallery(_ART_ROOT)` twice and checks `.townee_names` equality and `.n_references` equality. With the cache the second call returns the same object, which trivially satisfies both checks — no assertion weakened.
+
+**Result:** 81/81 pass in **23.5 s** (was ~295 s). No identification behavior changed; no thresholds or defaults touched.
+
 ## 2026-06-22 — Stage 3 embedding-NN built — honest result: frozen ImageNet does NOT beat classical
 
 **Built it correctly:** MobileNetV3-Small (frozen, ImageNet) → exported to ONNX (**torch↔onnx parity 1.7e-6**) → **onnxruntime-CPU** runtime (verified **no `import torch` anywhere in `src/dbcv/`** — serving stays torch-free) → cosine-NN over a 576-d, re-embeddable gallery (prototypical mean per townee). Wired into the `lifespan` (load once). **81 tests pass.** ONNX is gitignored + regenerable via `utils/python/export_backbone.py` (`models/README.md` documents it).

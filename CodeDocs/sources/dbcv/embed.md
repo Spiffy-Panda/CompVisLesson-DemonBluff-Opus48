@@ -1,6 +1,7 @@
 # CodeDocs/sources/dbcv/embed.py
 
-**Status:** NEW — Stage 3 runtime embedder (onnxruntime only; no torch in this module).
+**Status:** active — Stage 3 runtime embedder (onnxruntime only; no torch in this module).
+`get_onnx_embedder()` factory added 2026-06-22 for process-level session reuse.
 
 **Purpose:** Wraps the exported MobileNetV3-Small ONNX backbone for CPU inference at runtime.
 Given a BGR card crop, produces an L2-normalised 576-dim embedding vector for nearest-neighbor
@@ -33,7 +34,19 @@ Dev-time export (which does require torch) lives in `utils/python/export_backbon
 
 ## Key signatures
 
-### `OnnxEmbedder` — class (line ~86)
+### `get_onnx_embedder(onnx_path=None) -> OnnxEmbedder` — module-level factory (line ~103)
+```python
+def get_onnx_embedder(onnx_path: Path | str | None = None) -> OnnxEmbedder:
+```
+Returns a **cached** `OnnxEmbedder` for `onnx_path` (key = resolved path).  Constructs
+it once per process via `_EMBEDDER_CACHE`; subsequent calls are ~0 ms.
+
+**Preferred over `OnnxEmbedder()` directly** when the same model will be used multiple
+times in one process (test suite, server lifespan).  `api.py` lifespan uses this.
+
+---
+
+### `OnnxEmbedder` — class (line ~126)
 
 ```python
 class OnnxEmbedder:
@@ -47,6 +60,9 @@ Loads the ONNX session once (CPU provider). Raises `FileNotFoundError` with a cl
 message if the ONNX file is absent (tells user to run `export_backbone.py`).
 
 Anchors default path to repo root via `Path(__file__).resolve().parents[2]`.
+
+Stores `self._onnx_path: Path` (resolved) for use as a cache key by
+`build_embedding_gallery` in `gallery.py`.
 
 #### `preprocess(bgr_crop) -> np.ndarray` — returns shape `[1, 3, 224, 224]` float32
 Steps:

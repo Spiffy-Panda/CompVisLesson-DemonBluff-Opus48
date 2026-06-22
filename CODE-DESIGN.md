@@ -22,8 +22,9 @@ The map of `src/`. Read this and `CodeDocs/00_PROJECT.md` **before** opening any
 - CLI: `utils/python/run_pipeline.py`
 - Dev export tool: `utils/python/export_backbone.py` (requires torch; generates `models/*.onnx`)
 
-**81 tests pass** (60 original + 21 new embedding tests). Suite runtime ~295s (gallery rebuilds
-across test modules — the cleanup task to share session-scoped galleries is still tracked).
+**81 tests pass** (60 original + 21 new embedding tests). Suite runtime **~23 s** (was ~295 s —
+fixed 2026-06-22 via process-level memoization of `build_gallery`, `OnnxEmbedder`, and
+`build_embedding_gallery`; see DEV-LOG entry 2026-06-22 for rationale).
 
 Source overviews live under `CodeDocs/sources/dbcv/`:
 - [`schema.md`](sources/dbcv/schema.md) — Pydantic v2 models (`GameStateSnapshot`, etc.)

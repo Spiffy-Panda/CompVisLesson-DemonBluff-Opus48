@@ -258,6 +258,25 @@ def _identity_from_dir(dir_name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Process-level cache for build_gallery
+# ---------------------------------------------------------------------------
+# Keyed by the resolved art_root Path.  Within one process (test suite or server
+# lifetime) the art directory never changes, so returning the same Gallery object
+# is always correct.  An art swap requires a process restart, which clears the
+# cache automatically.
+#
+# Safety: GalleryEntry objects are NamedTuples (immutable) and the Gallery
+# dataclass is never mutated after construction — sharing it across callers is safe.
+#
+# Note: this cache is intentionally process-wide (module-level dict).  Tests that
+# call build_gallery() multiple times with the same art_root will receive the same
+# Gallery instance.  The idempotency test (test_gallery_rebuild_is_idempotent)
+# checks .townee_names equality and .n_references equality — returning the same
+# object trivially satisfies both assertions.
+_GALLERY_CACHE: dict[Path, "Gallery"] = {}
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -298,6 +317,10 @@ def build_gallery(art_root: Path | str | None = None) -> Gallery:
         art_root = _repo_root / "knowledge-base" / "card-art"
     else:
         art_root = Path(art_root).resolve()
+
+    # --- Process-level cache: return the prebuilt Gallery if available ---
+    if art_root in _GALLERY_CACHE:
+        return _GALLERY_CACHE[art_root]
 
     if not art_root.exists():
         raise FileNotFoundError(f"Card-art root not found: {art_root}")
@@ -360,6 +383,8 @@ def build_gallery(art_root: Path | str | None = None) -> Gallery:
         townee_names=sorted(seen_identities),
         role_classes=sorted(seen_role_classes),
     )
+    # Store in process-level cache before returning
+    _GALLERY_CACHE[art_root] = gallery
     return gallery
 
 
@@ -408,6 +433,18 @@ class EmbeddingGallery:
     @property
     def n_classes(self) -> int:
         return len(self.entries)
+
+
+# ---------------------------------------------------------------------------
+# Process-level cache for build_embedding_gallery
+# ---------------------------------------------------------------------------
+# Keyed by (resolved art_root Path, resolved onnx_path Path).  The embedder
+# carries its ONNX path; we extract it to form the cache key so that different
+# model files produce different galleries (correct behaviour on a model swap).
+#
+# Same safety rationale as _GALLERY_CACHE: EmbeddingGalleryEntry is a NamedTuple
+# (immutable); EmbeddingGallery is never mutated after construction.
+_EMBED_GALLERY_CACHE: dict[tuple, "EmbeddingGallery"] = {}
 
 
 def build_embedding_gallery(
@@ -460,6 +497,16 @@ def build_embedding_gallery(
         art_root = _repo_root / "knowledge-base" / "card-art"
     else:
         art_root = Path(art_root).resolve()
+
+    # --- Process-level cache: return the prebuilt EmbeddingGallery if available ---
+    # The cache key combines art_root and the embedder's ONNX model path so that
+    # a model swap or art swap (each requiring a process restart in production) gets
+    # a fresh gallery, while the common case (same process, same files) reuses the
+    # prebuilt result.
+    _onnx_path_key: Path | None = getattr(embedder, "_onnx_path", None)
+    _cache_key = (art_root, _onnx_path_key)
+    if _cache_key in _EMBED_GALLERY_CACHE:
+        return _EMBED_GALLERY_CACHE[_cache_key]
 
     if not art_root.exists():
         raise FileNotFoundError(f"Card-art root not found: {art_root}")
@@ -528,9 +575,12 @@ def build_embedding_gallery(
     # Stack prototype embeddings into a [K, 576] matrix for fast batch cosine similarity
     embeddings_matrix = np.stack([e.embedding for e in entries], axis=0)  # [K, 576]
 
-    return EmbeddingGallery(
+    embed_gallery_result = EmbeddingGallery(
         entries=entries,
         townee_names=sorted(seen_identities),
         role_classes=sorted(seen_role_classes),
         embeddings=embeddings_matrix,
     )
+    # Store in process-level cache before returning
+    _EMBED_GALLERY_CACHE[_cache_key] = embed_gallery_result
+    return embed_gallery_result

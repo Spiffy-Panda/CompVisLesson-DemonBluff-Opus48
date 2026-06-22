@@ -88,6 +88,37 @@ _DEFAULT_ONNX_PATH = _REPO_ROOT / "models" / "mobilenetv3_small_embed.onnx"
 
 
 # ---------------------------------------------------------------------------
+# Process-level cache for OnnxEmbedder instances
+# ---------------------------------------------------------------------------
+# Keyed by the resolved ONNX model path.  Loading an ONNX InferenceSession
+# takes ~50 ms and allocates the operator kernels once; reusing the same
+# instance across all callers (test fixtures, lifespan, helper functions) is
+# correct because OnnxEmbedder is stateless after construction.
+#
+# This cache is module-level so it persists for the lifetime of the process.
+# A model swap requires a process restart, which clears the cache automatically.
+_EMBEDDER_CACHE: dict[Path, "OnnxEmbedder"] = {}
+
+
+def get_onnx_embedder(onnx_path: "Path | str | None" = None) -> "OnnxEmbedder":
+    """Return a cached OnnxEmbedder for ``onnx_path``, constructing it once.
+
+    Preferred over calling ``OnnxEmbedder()`` directly when the same model
+    file will be used multiple times in one process (e.g. test suite, server).
+
+    Parameters
+    ----------
+    onnx_path:
+        Path to the ONNX model file.  Defaults to the canonical path used by
+        OnnxEmbedder (models/mobilenetv3_small_embed.onnx, repo-root anchored).
+    """
+    resolved = Path(onnx_path).resolve() if onnx_path is not None else _DEFAULT_ONNX_PATH
+    if resolved not in _EMBEDDER_CACHE:
+        _EMBEDDER_CACHE[resolved] = OnnxEmbedder(resolved)
+    return _EMBEDDER_CACHE[resolved]
+
+
+# ---------------------------------------------------------------------------
 # OnnxEmbedder
 # ---------------------------------------------------------------------------
 
@@ -122,6 +153,11 @@ class OnnxEmbedder:
                 "Run the export tool to generate it:\n"
                 "    .venv\\Scripts\\python.exe utils\\python\\export_backbone.py"
             )
+
+        # Store the resolved path so gallery.py can use it as a cache key.
+        # This enables build_embedding_gallery to distinguish galleries built
+        # from different ONNX models without importing OnnxEmbedder directly.
+        self._onnx_path: Path = onnx_path
 
         # Load the ONNX session once — CPU-only provider.
         # Using CPUExecutionProvider explicitly (no CUDA required at runtime).
