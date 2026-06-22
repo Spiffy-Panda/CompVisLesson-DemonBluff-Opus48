@@ -11,9 +11,13 @@ The map of `src/`. Read this and `CodeDocs/00_PROJECT.md` **before** opening any
 
 ## Status
 
-**Stage 2 (classical identification baseline) landed 2026-06-22.**
-`src/dbcv/` now contains the full Stage 2 package including gallery and
-classical matcher. 46 tests pass.
+**Stages 0–2 (classical/CPU) + the REST slice landed 2026-06-22.**
+`src/dbcv/` contains the frame-state gate, classical localizer, gallery +
+classical identifier, assembly, pipeline, and the FastAPI app. A CLI runner
+lives at `utils/python/run_pipeline.py` (cataloged in `utils/README.md`).
+**60 tests pass** (the `src/dbcv` suite + the CLI helper tests). Note: the suite
+runs ~70s because the card-art gallery rebuilds across test files — a tracked
+cleanup task exists to share one session-scoped gallery.
 
 Source overviews live under `CodeDocs/sources/dbcv/`:
 - [`schema.md`](sources/dbcv/schema.md) — Pydantic v2 models (`GameStateSnapshot`, etc.)

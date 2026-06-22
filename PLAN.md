@@ -4,7 +4,7 @@ Index of per-slug plan files in `plans/PLAN-<slug>.md`. One line per entry. This
 
 ## Active
 
-- [PLAN-pipeline](plans/PLAN-pipeline.md) — video → game state → REST, in 6 stages (frame selection → localization → identification → on-card reading → state assembly → REST). Direction set by the first research pass; no code yet.
+- [PLAN-pipeline](plans/PLAN-pipeline.md) — video → game state → REST, in 6 stages. **Shipped 2026-06-22 (classical/CPU, in `src/dbcv/`):** Stage 0 frame-state gate, Stage 1 localization, Stage 2 identification baseline, the REST slice (`POST /v1/snapshot`), and a `utils/` CLI runner — 60 tests green. **Remaining:** Stage 3 on-card OCR, Stage 4 temporal assembly, the Stage 2 embedding-NN upgrade, and Stage 5 ONNX serving — all gated on the first heavier dependencies (onnxruntime/torch), deferred per the conservative-path directive.
 
 ## Completed
 
