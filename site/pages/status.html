@@ -11,7 +11,7 @@
   <div class="wrap">
     <p class="crumb"><a href="../index.html">← CompVis Lesson — Demon Bluff</a></p>
     <header class="site">
-      <p class="eyebrow">Build log · Snapshot 2026-06-22</p>
+      <p class="eyebrow">Build log · Snapshot 2026-06-22 14:11 PT · commit 049cb25</p>
       <h1>Project status &amp; handoff summary</h1>
       <p class="tagline">Where the pipeline and the course stand right now, in plain terms — a
         snapshot for picking the work back up. The cited, authoritative version lives in the repo
@@ -21,8 +21,8 @@
     <div class="panel scratch">
       <p><strong>One line:</strong> the pipeline already reads a <em>Demon Bluff</em> board
         end-to-end from a single frame — it finds the cards, decides whether the frame even shows a
-        board, takes a first pass at naming each card, and serves the result as JSON over HTTP.
-        Everything runs on CPU; the heavier tools are dev-only.</p>
+        board, names each card with a fine-tuned model (and says "unknown" when unsure), and serves
+        the result as JSON over HTTP. Everything runs on CPU; the heavier tools are dev-only.</p>
     </div>
 
     <h2>What's working</h2>
@@ -48,24 +48,30 @@
       </ul>
     </div>
 
-    <h2>The honest finding (identification)</h2>
+    <h2>The honest finding → and the fix (identification)</h2>
     <div class="panel scratch">
       <p>This is the kind of real result the course exists to show. Two identifiers were built:</p>
       <ul>
         <li><strong>Classical</strong> (colour-histogram + feature match against a reference gallery):
-          roughly <strong>40–60% correct on face-up cards</strong>, and correctly says
-          <em>"unknown"</em> on face-down cards (a blank card back matches nothing — the right
-          answer).</li>
+          identifies roughly <strong>a third of cards</strong> and honestly says <em>"unknown"</em>
+          on the rest (an honest abstention beats a confident wrong answer).</li>
         <li><strong>Embedding nearest-neighbour</strong> (a small image model → vector → nearest
-          gallery vector): the architecture is the production-intended one and re-fits on an art swap
-          with zero training. <strong>But</strong> the off-the-shelf (frozen, photo-trained) model
-          squashes all the cartoon characters into one tight cluster, so it confidently names nearly
+          gallery vector): the production-intended approach, which re-fits when the art changes.
+          <strong>The honest catch:</strong> the off-the-shelf (frozen, photo-trained) model
+          squashed all 43 cartoon characters into one tight cluster, so it confidently named nearly
           every slot — <em>without being more accurate</em> than the conservative classical method.</li>
       </ul>
+      <p><strong>The fix (done):</strong> we fine-tuned that small model on the card art on the dev
+        GPU — a short, metric-learning pass that pulls each character apart in vector space. It
+        worked: a "how separable are the characters" score that was ~0.85 ("everything looks alike")
+        dropped to ~0.41, and the model now stands clearly behind its confident calls. We adopted it
+        as the default — with a twist learned along the way: after fine-tuning, the old "how close is
+        the match" cutoff no longer meant anything, so abstention now keys on the <em>margin</em>
+        between the top guess and the runner-up. The result is conservative and honest: it commits to
+        the cards it's sure about and says "unknown" on the rest.</p>
       <p>The takeaway, which becomes a lesson: an embedding model doesn't magically win — you have to
-        adapt it to your domain. The next step is a light fine-tune of that model on card crops, which
-        the dev machine can now do locally. Until then the conservative classical identifier is the
-        safer default for an API (an honest "unknown" beats a confident wrong answer).</p>
+        adapt it to your domain, and a good fix can quietly break an assumption you relied on (here,
+        the confidence threshold) that you then have to redesign.</p>
     </div>
 
     <h2>The course (the real deliverable)</h2>
@@ -86,22 +92,23 @@
         <li><strong>Classical CV:</strong> OpenCV (headless) + NumPy — the localization and the first
           identifier.</li>
         <li><strong>Serving:</strong> FastAPI + ONNX Runtime on CPU; small models only, no batching.</li>
-        <li><strong>Dev-time ML:</strong> PyTorch (GPU) is used only to prepare/export models, which
-          are then served on CPU. Runtime models stay small enough for a mid-grade gaming PC.</li>
+        <li><strong>Dev-time ML:</strong> PyTorch (GPU) is used only to fine-tune / prepare / export
+          models, which are then served on CPU. Runtime models stay small enough for a mid-grade
+          gaming PC.</li>
       </ul>
     </div>
 
     <h2>What's next</h2>
     <div class="panel scratch">
       <ul>
-        <li>Fine-tune the embedding model on card crops, re-export, and re-measure against the
-          classical baseline.</li>
         <li>On-card / HUD text reading (a tiny recognizer for the small, fixed set of words and
           numbers).</li>
         <li>Combine reads across several frames into one stable snapshot (single frames can be
           occluded by dialogs).</li>
         <li>Finish frame selection (skip-ahead decoding + dropping near-duplicate frames) and the
           remaining two lesson modules.</li>
+        <li><em>Optional deepening:</em> a second fine-tune round on real, labelled board crops to
+          push identification accuracy further (a dataset-building effort).</li>
       </ul>
     </div>
 
@@ -118,8 +125,8 @@
     </div>
 
     <footer class="site">
-      <p><span class="status-dot">●</span> Snapshot as of 2026-06-22. LLM-authored teaching artifact;
-        status changes as the work continues.</p>
+      <p><span class="status-dot">●</span> Snapshot as of 2026-06-22 14:11 PT (commit 049cb25).
+        LLM-authored teaching artifact; status changes as the work continues.</p>
     </footer>
   </div>
 </body>
