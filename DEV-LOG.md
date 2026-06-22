@@ -16,6 +16,10 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Lesson modules 02 (frame selection) + 05 (identification)
+
+Authored two more course modules, each grounded in shipped+tested code and matching the established skeleton/voice: `Lesson-Plan/modules/02_frame-selection.md` (the frame-selection design space + the shipped board/modal/menu gate, including the honest "absolute brightness failed → the center-vs-ring *ratio* is the invariant" debugging story; forward-references the still-owed stride/dedup) and `05_card-identification.md` (the four identification families on the retrain-cost axis, the shipped classical baseline, the honest ~40–60% face-up result, the `compareHist(zeros,*)==1.0` bug, and the deliberately-deferred embedding-NN upgrade). Cites existing RESEARCH entries 1 and 3 (no new research needed). `LESSON-PLAN.md` inventory now **4/10 authored** (00, 02, 04, 05). No desync.
+
 ## 2026-06-22 — End-to-end CLI runner (capstone): the pipeline reads the board
 
 Promoted a durable runner to `utils/python/run_pipeline.py` (Rule 1 promotion: descriptive name, repo-root-anchored, **row added to `utils/README.md`**). It runs the full pipeline offline (no HTTP) on sampled PNGs: builds the gallery once, then per frame does gate → localize (board only) → identify, prints a readable summary (frame_state + per-card identity@confidence), writes snapshot JSON, and (with `--overlay`) saves annotated PNGs to the gitignored `dataset/pipeline-out/`. Flags: `--frames`, `--out`, `--overlay`, `--limit`, `--no-gallery`.

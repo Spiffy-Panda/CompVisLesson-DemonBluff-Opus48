@@ -56,10 +56,10 @@ A draft spine, not a commitment — modules earn their place from real pipeline 
 |---|------|--------|------------------|
 | 00 | `python-environments` | Authored — `modules/00_python-environments.md` | "Python environment & dependency management (venv/virtualenv/pip/conda/uv) — 2026-06-22" |
 | 01 | _(framing-the-problem)_ | Planned | — |
-| 02 | _(frame-selection)_ | Planned | "Frame selection / keyframe extraction from long gameplay video — 2026-06-21" |
+| 02 | `frame-selection` | Authored — `modules/02_frame-selection.md` | "Frame selection / keyframe extraction from long gameplay video — 2026-06-21" |
 | 03 | _(resolution-agnostic-geometry)_ | Planned | — |
 | 04 | `card-localization` | Authored — `modules/04_card-localization.md` | "Card/region localization robust to art swaps under a tight compute budget — 2026-06-21" |
-| 05 | _(card-identification)_ | Planned | "Card identification that is cheap to retrain when art changes — 2026-06-21" |
+| 05 | `card-identification` | Authored — `modules/05_card-identification.md` | "Card identification that is cheap to retrain when art changes — 2026-06-21" |
 | 06 | _(on-card-text)_ | Planned | "Lightweight OCR for short on-card text and numbers in game UI — 2026-06-21" |
 | 07 | _(game-state-assembly)_ | Planned | — |
 | 08 | _(REST-serving)_ | Planned | "Serving CV inference over a REST API (Python) — 2026-06-21" |
