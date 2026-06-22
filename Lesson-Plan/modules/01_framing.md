@@ -5,7 +5,7 @@
 **What you'll be able to do:**
 
 1. Describe what "reading game state from video frames" means concretely for *Demon Bluff* — what the input is, what structured output is expected, and why the problem is not trivial.
-2. Sketch the pipeline's seven-stage arc (frame selection → state gate → localization → identification → on-card reading → assembly → REST serving) and explain why each stage exists.
+2. Sketch the pipeline's six-stage arc (frame selection → localization → identification → on-card reading → assembly → REST serving) and explain why each stage exists.
 3. Name the six constraints that shape every technique choice in this course and explain how each one closes off options that would otherwise be available.
 4. Identify which pipeline stages are classical (no learned model at runtime) and which use a learned model — and understand why those are deliberate choices, not oversights. (Identification now ships an *adopted* learned model — a fine-tuned embedding-NN — after a frozen backbone proved insufficient; see Module 05.)
 
@@ -40,25 +40,23 @@ That snapshot is served over a REST endpoint: `POST /v1/snapshot` accepts a fram
 
 ---
 
-## The pipeline arc: seven stages as a preview
+## The pipeline arc: six stages as a preview
 
 The course teaches CV by building these stages in order. Here is the arc:
 
-**Stage 0 — Frame-state gate.** Not every frame of a game session shows the board. Modals (role-reveal popups), menu screens, and loading transitions interrupt the board view. A cheap center-vs-ring brightness-ratio gate (`src/dbcv/frame_state.py`) classifies each frame as `board` or not-board before any downstream processing runs. Localization only ever sees board frames; everything else is discarded early.
+**Stage 0 — Frame selection (including the frame-state gate).** An hour of game video at 30 fps is ~108 000 frames. Downstream stages cannot process every one in real time; more importantly, most adjacent frames are near-identical and redundant. A perceptual-hash deduplication step, running on a low fixed-stride decode (~1–2 fps), collapses the stream to a manageable set of distinct frames. This stage also includes the **frame-state gate**: not every frame shows the board — modals (role-reveal popups), menu screens, and loading transitions interrupt the board view. A cheap center-vs-ring brightness-ratio gate (`src/dbcv/frame_state.py`) classifies each frame as `board` or not-board so that localization only ever sees board frames; everything else is discarded early. Module 02 teaches this stage.
 
-**Stage 1 — Frame selection.** An hour of game video at 30 fps is ~108 000 frames. Downstream stages cannot process every one in real time; more importantly, most adjacent frames are near-identical and redundant. A perceptual-hash deduplication step, running on a low fixed-stride decode (~1–2 fps), collapses the stream to a manageable set of distinct frames. Module 02 teaches this stage.
+**Stage 1 — Card localization.** Given a board frame, find the bounding box of each card. The pipeline uses a classical, layout-based approach: HSV colour segmentation → morphological cleanup → contour filtering → HUD-zone exclusion → IoU NMS. This is `src/dbcv/localize.py`. Module 04 teaches this stage and explains the choice over a trained detector.
 
-**Stage 2 — Resolution-agnostic geometry.** Every geometry computation in the pipeline is derived from the measured frame dimensions (`image.shape[:2]`), never from a hard-coded constant. This is enforced as a project constraint (see `CLAUDE.md`). Module 03 teaches why this matters and how the pipeline enforces it.
+**Stage 2 — Card identification.** Given a cropped card image, name the townee. A classical baseline uses a 2-D HSV colour histogram matched against an in-memory reference gallery (`src/dbcv/gallery.py`, `src/dbcv/identify.py`); it is retained as a fallback. The **adopted default** is a small embedding backbone with nearest-neighbour retrieval — but **domain-fine-tuned**, because a *frozen* ImageNet backbone collapsed the stylised characters and over-identified. Module 05 teaches the whole arc (classical → frozen-fails → fine-tune-fixes → adopted).
 
-**Stage 3 — Card localization.** Given a board frame, find the bounding box of each card. The pipeline uses a classical, layout-based approach: HSV colour segmentation → morphological cleanup → contour filtering → HUD-zone exclusion → IoU NMS. This is `src/dbcv/localize.py`. Module 04 teaches this stage and explains the choice over a trained detector.
+**Stage 3 — On-card reading.** Given a card crop, read the role-name text and ability counts. A closed-vocabulary recognizer (tiny CNN/CRNN over the known glyph set) or a lightweight OCR fallback reads these fields. Module 06 teaches this stage.
 
-**Stage 4 — Card identification.** Given a cropped card image, name the townee. A classical baseline uses a 2-D HSV colour histogram matched against an in-memory reference gallery (`src/dbcv/gallery.py`, `src/dbcv/identify.py`); it is retained as a fallback. The **adopted default** is a small embedding backbone with nearest-neighbour retrieval — but **domain-fine-tuned**, because a *frozen* ImageNet backbone collapsed the stylised characters and over-identified. Module 05 teaches the whole arc (classical → frozen-fails → fine-tune-fixes → adopted).
+**Stage 4 — Assembly and temporal logic.** Assemble per-card results into a coherent board snapshot. Handle transient modals that occlude cards by carrying forward state across frames. Module 07 covers this.
 
-**Stage 5 — On-card reading.** Given a card crop, read the role-name text and ability counts. A closed-vocabulary recognizer (tiny CNN/CRNN over the known glyph set) or a lightweight OCR fallback reads these fields. Module 06 teaches this stage.
+**Stage 5 — REST serving.** Expose the snapshot over a FastAPI endpoint with ONNX Runtime inference on CPU, versioned Pydantic schemas, and a lifespan-managed model load. Module 08 teaches this stage (`src/dbcv/api.py`).
 
-**Stage 6 — Assembly and temporal logic.** Assemble per-card results into a coherent board snapshot. Handle transient modals that occlude cards by carrying forward state across frames. Module 07 covers this.
-
-**Stage 7 — REST serving.** Expose the snapshot over a FastAPI endpoint with ONNX Runtime inference on CPU, versioned Pydantic schemas, and a lifespan-managed model load. Module 08 teaches this stage (`src/dbcv/api.py`).
+**Cross-cutting — Resolution-agnostic geometry.** This is not a numbered stage but a constraint that runs through every stage: every geometry computation in the pipeline is derived from the measured frame dimensions (`image.shape[:2]`), never from a hard-coded constant. This is enforced as a project constraint (see `CLAUDE.md`). Module 03 teaches why this matters and how the pipeline enforces it.
 
 The course closes with Module 09: what happens when the card art changes, and how the system was designed so that "cheap to re-fit" is a structural property, not a post-hoc retrofit.
 

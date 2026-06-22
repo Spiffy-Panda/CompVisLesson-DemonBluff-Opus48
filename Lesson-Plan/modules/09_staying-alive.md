@@ -19,7 +19,7 @@ From the pipeline's perspective, this event touches three things:
 
 1. **Localization** relies on HSV colour ranges tuned to the current art palette (the purple role rings, the orange card backs, the red demon accents). Different art may use different dominant hues.
 2. **Identification** relies on a reference gallery built from images of the current card art. The same character in different art is a visually distinct image. The *classical* fallback rebuilds its gallery with zero training; the *adopted* fine-tuned embedding identifier is fit to the current characters, so it is best **re-fine-tuned** on a swap (still cheap, still label-free) — see below.
-3. **On-card OCR** (the deferred Stage 5) relies on a custom recognizer trained on rendered crops of the current card font. A different art set may use a different font rendering.
+3. **On-card OCR** (the deferred Stage 3) relies on a custom recognizer trained on rendered crops of the current card font. A different art set may use a different font rendering.
 
 How expensive each re-fit is — that question was answered at design time, before the pipeline was written.
 

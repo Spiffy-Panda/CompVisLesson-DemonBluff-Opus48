@@ -6,7 +6,7 @@
 
 1. Articulate the design decision space for localization in a fixed-layout UI: classical geometry-based methods vs. trained object detectors vs. large foundation models, on the axes of accuracy, speed, training-data need, retrain cost, and compute budget.
 2. Explain why layout-based classical localization is the appropriate choice for this pipeline, given the project's specific constraints.
-3. Read and explain each stage of `src/dbcv/localize.py`'s `classical_localize` function — HSV segmentation, morphological cleanup, contour filtering, HUD-zone exclusion, and IoU-NMS.
+3. Read and explain each step of `src/dbcv/localize.py`'s `classical_localize` function — HSV segmentation, morphological cleanup, contour filtering, HUD-zone exclusion, and IoU-NMS.
 4. Run the localizer against the sample frames and interpret the output boxes.
 5. Describe honestly what the classical approach does *not* handle well, and what would need to change if those cases became common.
 
@@ -88,7 +88,7 @@ boxes = classical_localize(image, Resolution(w=w, h=h))
 
 All bounding box coordinates are returned as *relative fractions* of the frame dimensions — not pixel coordinates. This is the resolution-agnostic contract described in CLAUDE.md and enforced by the schema: no pipeline stage may assume a particular resolution, because `resolution` is always read from the media at runtime.
 
-The module also keeps `stub_localize` — the teaching "before" baseline — which returns three hard-coded approximate boxes without looking at the image at all. The diff between `stub_localize` and `classical_localize` is the entire delta introduced by adding vision: it shows what each stage of the algorithm adds.
+The module also keeps `stub_localize` — the teaching "before" baseline — which returns three hard-coded approximate boxes without looking at the image at all. The diff between `stub_localize` and `classical_localize` is the entire delta introduced by adding vision: it shows what each step of the algorithm adds.
 
 The test suite (`tests/test_localize.py`) runs the localizer against a known board frame and asserts the expected card count. To run:
 
@@ -99,17 +99,17 @@ The test suite (`tests/test_localize.py`) runs the localizer against a known boa
 
 ---
 
-## Inside `classical_localize`: the five stages
+## Inside `classical_localize`: the five steps
 
-Reading the code is part of the hands-on experience. Here is what each stage does and *why* it was designed that way. All pixel math is derived from `image.shape[:2]` — nothing is hard-coded to a specific resolution.
+Reading the code is part of the hands-on experience. Here is what each step does and *why* it was designed that way. All pixel math is derived from `image.shape[:2]` — nothing is hard-coded to a specific resolution.
 
-### Stage 1 — HUD-strip exclusion
+### Step 1 — HUD-strip exclusion
 
 Before segmenting for card colours, the function zeroes out the parts of the frame it knows are not cards: the objective bar at the top (~9% of height), the name-label strip at the bottom (~14%), the score panel on the left (~13% of width), and the icon cluster on the right (~8%). This is done in pixel space by setting those regions to black before the HSV conversion.
 
 The alternative — trying to distinguish HUD elements from card elements purely by colour — does not work reliably because the HUD contains colourful elements (red timers, orange tokens, bright text) that overlap the same colour ranges as card borders. Zeroing the HUD zones first makes the colour segmentation downstream dramatically cleaner.
 
-### Stage 2 — HSV colour segmentation
+### Step 2 — HSV colour segmentation
 
 The function converts the HUD-masked image to HSV and thresholds for the colour families that appear on Demon Bluff card borders: purple (role-colour rings), orange (card backs / villain styling), red (demon accent, which wraps around 0 in OpenCV's 0–179 hue scale and needs two ranges), and a broad "bright and saturated" catch-all for vivid card art not captured by the narrower ranges.
 
@@ -117,24 +117,24 @@ HSV rather than BGR thresholds: hue is the perceptually meaningful dimension for
 
 **The honest caveat here:** these HSV ranges were tuned to the *current* art set. They encode knowledge about which colours appear on the current cards. An art swap means re-tuning these specific ranges — still label-free, but not zero work. The 15–30 minute estimate comes from the module docstring, which reflects the development team's own experience.
 
-### Stage 3 — Morphological cleanup
+### Step 3 — Morphological cleanup
 
 A closing pass (dilate then erode) with a large proportional kernel joins the colour-segmented blobs that belong to a single card. Card art typically has interior dark gaps — between the role-colour ring and the art panel, between the art panel and text areas — that would otherwise split one card into several fragments. Closing bridges those gaps. An opening pass (erode then dilate) afterward removes isolated speckle noise that survived the colour threshold.
 
 Kernel sizes are proportional to `min(w, h)`, so the same relative amount of morphological work is done regardless of the input resolution.
 
-### Stage 4 — Contour filtering
+### Step 4 — Contour filtering
 
 `findContours` with `RETR_EXTERNAL` extracts the outermost contours in the cleaned mask. Each contour's bounding rectangle is computed and tested against four criteria:
 
 - Too small (< 0.15% of frame area): noise or a partial card edge, discarded.
 - Too large (> 9% of frame area): a HUD panel or full-board overlay, discarded.
 - Extreme aspect ratio (< 0.38 or > 1.40): bar-shaped UI elements (health bars, progress bands), discarded.
-- Overlaps a known HUD zone by > 40% of its area: a colourful HUD element that survived both Stage 1 zeroing and the size/aspect filters, discarded.
+- Overlaps a known HUD zone by > 40% of its area: a colourful HUD element that survived both Step 1 zeroing and the size/aspect filters, discarded.
 
 The specific threshold values (0.0015, 0.09, 0.38, 1.40, 0.40) were tuned on the sample frames. They are documented in the code alongside the geometry reasoning behind each.
 
-### Stage 5 — IoU non-maximum suppression
+### Step 5 — IoU non-maximum suppression
 
 A single physical card often produces 2–4 overlapping contour blobs — one for the art panel, one for the border ring, one for the role-colour accent — that each pass the geometry filters. NMS collapses them to one box per card.
 
@@ -148,7 +148,7 @@ The algorithm is greedy: sort surviving boxes by area descending (larger boxes c
 
 **Board-vs-modal state gating (now handled upstream).** During the spike, a naive center-brightness heuristic (bright center = board) misread dark-background modal dialogs as board frames, because *Demon Bluff*'s modals put bright art and text on the same dark starfield as the board — the heuristic fired in exactly the wrong direction, and the localizer would return a few stray boxes (0–2) on a modal. This is now fixed *upstream* of localization by the Stage 0 frame-state gate (`src/dbcv/frame_state.py`), which uses a center-vs-ring brightness *ratio* and runs before the localizer, so localization only ever sees board frames (see Module 02). The residual caveat for localization itself: on a *partial* modal that the gate still (correctly) classifies as "board," expect a reduced ring count — callers should not read "fewer boxes than usual" as "the board is empty."
 
-**HSV ranges are art-tuned.** As noted in Stage 2 above: an art swap requires re-tuning the HSV colour ranges. This is a one-time cost per art set, not a per-frame cost, and the estimate is 15–30 minutes. But it is a real cost, and learners should expect to do it. The geometry logic (morphology, contour filters, NMS) is art-independent and would not need adjustment.
+**HSV ranges are art-tuned.** As noted in Step 2 above: an art swap requires re-tuning the HSV colour ranges. This is a one-time cost per art set, not a per-frame cost, and the estimate is 15–30 minutes. But it is a real cost, and learners should expect to do it. The geometry logic (morphology, contour filters, NMS) is art-independent and would not need adjustment.
 
 **Streamer overlays and occlusion.** The sample footage includes a streamer handle ("Benji") rendered over the board. The current implementation is tolerant of this specific overlay because it occupies a region that the HUD-exclusion strips already handle, but a different overlay in a different position — particularly one in the ring area — could produce false positive detections. The pipeline does not have a general overlay-detection mechanism.
 

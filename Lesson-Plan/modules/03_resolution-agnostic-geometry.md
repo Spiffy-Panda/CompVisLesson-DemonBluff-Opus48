@@ -211,7 +211,7 @@ Then POST a frame with curl or the interactive docs at `http://127.0.0.1:8000/do
 
 Relative coordinates insulate the pipeline against resolution changes. They do not insulate it against content changes.
 
-The HSV thresholds in Stage 2 of `classical_localize` were tuned to the current card art palette (the specific hue ranges of Demon Bluff's purple role rings, orange card backs, and demon-red accents). Those thresholds are stored as numeric constants — not pixel constants, but colour constants. An art swap changes which colours appear on the cards, which changes which HSV ranges are needed. The 15–30 minute re-tune described in Module 04 is not avoidable by the resolution-agnostic design.
+The HSV thresholds in Step 2 of `classical_localize` were tuned to the current card art palette (the specific hue ranges of Demon Bluff's purple role rings, orange card backs, and demon-red accents). Those thresholds are stored as numeric constants — not pixel constants, but colour constants. An art swap changes which colours appear on the cards, which changes which HSV ranges are needed. The 15–30 minute re-tune described in Module 04 is not avoidable by the resolution-agnostic design.
 
 Similarly, the morphological kernel size (`k_close = max(9, int(min(w, h) * 0.018))`) is expressed relative to frame dimensions, but the `0.018` coefficient was tuned to the scale at which card features appear in the current footage. A scene filmed with a very different camera distance — card sprites at 5% of the frame height instead of 15% — would need the coefficient revisited. The formula adapts to resolution; it does not adapt to arbitrary content scale.
 
