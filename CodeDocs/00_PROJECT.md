@@ -42,23 +42,33 @@ Each arrow is a design fork the lesson plan will teach, with the chosen techniqu
 
 ## Status
 
-**Stage 2 (classical identification baseline) landed 2026-06-22.**
-`src/dbcv/` now contains the full package through Stage 2. 46 tests pass.
+**Stage 3 (embedding-NN identifier) landed 2026-06-22.**
+`src/dbcv/` now contains the full package through Stage 3. 81 tests pass.
 
 - Stage 0 (frame-state gate): `frame_state.py` — `classify_frame_state`
-  correctly classifies all labeled board and modal frames (7/7, 100 %).
+  correctly classifies all labeled board and modal frames (7/7, 100%).
 - Stage 1 (card localizer): `localize.py` — `classical_localize` validated
   (8/8 and 9/9 exact on board frames, 0 false positives).
 - Stage 2 (classical identification baseline):
   - `gallery.py` — `build_gallery()` loads 67 reference PNGs into a
     Gallery of 43 townees with precomputed HSV histograms + ORB descriptors.
-    Zero training. Art swap = re-run `build_gallery()`.
   - `identify.py` — `classify_crop(crop, gallery)` uses HSV histogram
-    correlation (primary) + ORB tiebreaker. Returns `("unknown","unknown",low)`
-    for face-down cards. `make_gallery_identifier(gallery)` bridges into the
-    1-arg pipeline interface.
-  - `api.py` lifespan now builds the gallery and stores a real identifier on
-    `app.state.identifier`.
+    correlation (primary) + ORB tiebreaker.
+- Stage 3 (embedding-NN identifier):
+  - `utils/python/export_backbone.py` — DEV-ONLY: exports MobileNetV3-Small
+    (ImageNet-pretrained, classifier stripped) to ONNX. Validates torch vs
+    onnxruntime parity (max abs diff 1.73e-06 on the Titan Xp machine).
+  - `embed.py` (NEW) — `OnnxEmbedder` loads the ONNX backbone at runtime;
+    `preprocess()` applies ImageNet normalisation; `embed()` returns a 576-dim
+    L2-normalised vector. No torch import.
+  - `gallery.py` — `build_embedding_gallery()` embeds all 67 references,
+    computes prototypical means per identity (43 prototypes), stacks into
+    a [43, 576] matrix for fast cosine similarity.
+  - `identify.py` — `classify_crop_embedding(crop, embedder, embed_gallery)`
+    uses cosine NN; `make_embedding_identifier()` bridges into the pipeline.
+  - `api.py` lifespan now builds embedding gallery + ONNX session; embedding-NN
+    is the default identifier; classical retained on `app.state.classical_identifier`.
+    If ONNX file missing, falls back to classical with a warning.
 - Schema: `schema_version` = `"0.2.0"`; `frame_state` field present.
 
 See `CODE-DESIGN.md` for the per-file overview index.

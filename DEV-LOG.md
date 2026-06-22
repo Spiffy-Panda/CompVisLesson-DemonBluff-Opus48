@@ -16,6 +16,18 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Stage 3 embedding-NN built — honest result: frozen ImageNet does NOT beat classical
+
+**Built it correctly:** MobileNetV3-Small (frozen, ImageNet) → exported to ONNX (**torch↔onnx parity 1.7e-6**) → **onnxruntime-CPU** runtime (verified **no `import torch` anywhere in `src/dbcv/`** — serving stays torch-free) → cosine-NN over a 576-d, re-embeddable gallery (prototypical mean per townee). Wired into the `lifespan` (load once). **81 tests pass.** ONNX is gitignored + regenerable via `utils/python/export_backbone.py` (`models/README.md` documents it).
+
+**The finding (important, and the opposite of the easy story):** the frozen ImageNet backbone **collapses all 43 cartoon characters into one tight cluster** — inter-prototype cosines run 0.65–0.94 (e.g. Architect↔Shaman = 0.93). ImageNet features discriminate *photographs*, not cartoon art style. Consequence on the Sample1 board frames: embedding-NN names **100%** of card slots (vs classical's conservative 35% fire-rate) but is **not actually more accurate** — it overidentifies, biased toward the cluster-central prototypes (Architect, Hunter). Classical, by honestly returning "unknown" ~65% of the time, has higher *precision* when it commits. Net: **frozen embedding ≈ or slightly worse than classical in correctness**, just far less conservative. Face-down/blank crops correctly fall below the 0.60 cosine threshold → "unknown".
+
+**What this means:** the embedding *architecture* is right (re-fit-cheap, ONNX-on-CPU, the research path) but a **frozen generic backbone is insufficient for this domain — light fine-tuning on card crops is the real fix**, and it's now feasible locally on the Titan Xp. This is a genuinely instructive result for Module 05 ("embedding doesn't magically win — you must adapt the backbone to your domain"), to be written once the fine-tuned variant exists.
+
+**Open decision (flagged for Panda):** the build wired embedding-NN as the default identifier; I **recommend the default be the more conservative classical** identifier (honest "unknown" beats confident-wrong for a state API) **until** the backbone is fine-tuned. Both remain available on `app.state` (`identifier`, `classical_identifier`). Not flipped autonomously — it's a product call.
+
+**Regression (now urgent):** the test suite ballooned to **~295 s** (was ~74 s) — the embedding-gallery build compounds the existing per-test-module classical-gallery rebuilds. The tracked test-speed cleanup is being done next (memoize/session-scope the heavy builds); it's independent of the default/fine-tuning decision.
+
 ## 2026-06-22 — Adopt torch + ONNX (GPU verified on the Titan Xp); embedding-NN unblocked
 
 **Context:** Panda green-lit torch + ONNX, with **local GPU dev on the Titan Xp** (easier dev loop than round-tripping Colab). This also corrected an imprecision of mine.

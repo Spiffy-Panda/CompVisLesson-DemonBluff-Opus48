@@ -41,8 +41,9 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from dbcv.config import get_settings
-from dbcv.gallery import build_gallery
-from dbcv.identify import make_gallery_identifier
+from dbcv.embed import OnnxEmbedder
+from dbcv.gallery import build_embedding_gallery, build_gallery
+from dbcv.identify import make_embedding_identifier, make_gallery_identifier
 from dbcv.pipeline import run_pipeline
 from dbcv.schema import GameStateSnapshot, Source
 
@@ -78,7 +79,7 @@ async def lifespan(application: FastAPI):
     settings = get_settings()
     application.state.settings = settings
 
-    # Build the reference gallery once at startup.
+    # Build the classical reference gallery once at startup.
     # The gallery loads ~67 small PNGs from knowledge-base/card-art/ and
     # precomputes HSV histograms + ORB descriptors entirely in-memory (~100 ms).
     # It is stored on app.state so every request shares the same pre-built object.
@@ -88,12 +89,41 @@ async def lifespan(application: FastAPI):
     # This is the "load once" pattern from research/RESEARCH.md entry 5.
     gallery = build_gallery()
     application.state.gallery = gallery
-    application.state.identifier = make_gallery_identifier(gallery)
+    # Stage 2 classical identifier — kept as a fallback / selectable baseline
+    application.state.classical_identifier = make_gallery_identifier(gallery)
+
+    # Build the Stage 3 embedding gallery (onnxruntime, CPU, no torch).
+    # OnnxEmbedder loads the ONNX session once; build_embedding_gallery embeds
+    # all ~67 reference PNGs and computes prototypical mean embeddings (~1-2 s).
+    # Stored on app.state so every request reuses the same pre-built objects.
+    #
+    # If the ONNX file is missing (not yet exported), fall back gracefully to
+    # the classical identifier with a warning.  Run export_backbone.py to generate.
+    try:
+        embedder = OnnxEmbedder()
+        embed_gallery = build_embedding_gallery(gallery, embedder)
+        application.state.embedder = embedder
+        application.state.embed_gallery = embed_gallery
+        # Embedding-NN is the default identifier (Stage 3)
+        application.state.identifier = make_embedding_identifier(embedder, embed_gallery)
+    except FileNotFoundError as exc:
+        # ONNX file not generated yet — fall back to classical
+        import warnings
+        warnings.warn(
+            f"Embedding-NN model not found ({exc}). "
+            "Falling back to classical identifier. "
+            "Run: .venv\\Scripts\\python.exe utils\\python\\export_backbone.py",
+            stacklevel=1,
+        )
+        application.state.embedder = None
+        application.state.embed_gallery = None
+        application.state.identifier = application.state.classical_identifier
 
     yield  # <-- application is live here
 
     # --- shutdown ---
-    # Gallery is in-memory only; nothing to close.
+    # Gallery and ONNX session are in-memory only; nothing explicit to close.
+    # onnxruntime sessions are released when the Python object is garbage-collected.
 
 
 # ---------------------------------------------------------------------------

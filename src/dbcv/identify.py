@@ -386,3 +386,116 @@ def identify(card_crop: np.ndarray) -> tuple[str, str, float]:
     and pass the result as the ``identifier`` argument to ``run_pipeline``.
     """
     return stub_identify(card_crop)
+
+
+# ---------------------------------------------------------------------------
+# Stage 3 — Embedding-NN identifier
+# ---------------------------------------------------------------------------
+
+# Cosine similarity threshold below which we return "unknown".
+# Face-down cards embed to a vector that cosines poorly against any character art;
+# they typically score below 0.30.  Cards with heavy borders/tinting that embed
+# ambiguously will also score low.
+# Calibrated empirically by running the eval (scrap_scripts/python/09_embed_eval.py).
+_EMBED_CONFIDENCE_THRESHOLD: float = 0.60
+
+
+def classify_crop_embedding(
+    card_crop: np.ndarray,
+    embedder: "object",          # OnnxEmbedder — avoids circular import
+    embed_gallery: "object",     # EmbeddingGallery
+) -> tuple[str, str, float]:
+    """Classify a card crop using embedding nearest-neighbour lookup.
+
+    The approach:
+      1. Embed the crop via the OnnxEmbedder (one ONNX forward pass).
+      2. Compute cosine similarities against all gallery prototypes (one matmul).
+      3. Pick the nearest neighbour (highest cosine similarity).
+      4. Map cosine similarity in [-1, 1] to confidence in [0, 1].
+      5. Return "unknown" if confidence is below the threshold.
+
+    Why cosine instead of Euclidean?
+    ---------------------------------
+    Both the crop embedding and gallery prototypes are L2-normalised, so
+    cosine similarity = dot product -- cheap (O(K * D) single matmul) and
+    invariant to embedding vector scale, which varies with input brightness.
+
+    Face-down cards
+    ---------------
+    Face-down cards show a uniform card-back pattern with no character art.
+    Their embedding lands in a region of embedding space that is far from all
+    character art prototypes (different colour/texture/shape statistics).
+    They reliably score below the _EMBED_CONFIDENCE_THRESHOLD and return
+    ("unknown", "unknown", low_confidence).
+
+    Parameters
+    ----------
+    card_crop:
+        BGR numpy array (H x W x C) from pipeline's crop_relative call.
+    embedder:
+        A pre-loaded OnnxEmbedder instance.
+    embed_gallery:
+        Pre-built EmbeddingGallery (from build_embedding_gallery()).
+
+    Returns
+    -------
+    (identity, role_class, confidence)
+        identity   -- townee name or "unknown"
+        role_class -- role family or "unknown"
+        confidence -- float in [0, 1]
+    """
+    if card_crop is None or card_crop.size == 0:
+        return ("unknown", "unknown", 0.0)
+
+    # Embed the crop -- [576] float32, unit norm
+    crop_vec = embedder.embed(card_crop)
+
+    # Degenerate embedding (e.g., pure black crop) -> unknown
+    if crop_vec is None or float(np.linalg.norm(crop_vec)) < 1e-9:
+        return ("unknown", "unknown", 0.0)
+
+    # Cosine similarity against all gallery prototypes
+    # embed_gallery.embeddings: [K, 576] (each row already unit-norm)
+    # crop_vec: [576] unit-norm
+    # dot product of unit vecs = cosine similarity in [-1, 1]
+    cosine_scores: np.ndarray = embed_gallery.embeddings @ crop_vec  # [K]
+
+    best_idx = int(np.argmax(cosine_scores))
+    best_cosine = float(cosine_scores[best_idx])
+
+    # Map cosine similarity from [-1, 1] to confidence in [0, 1]:
+    #   confidence = (cosine + 1) / 2  (linear rescaling)
+    # A completely random embedding has expected cosine ~0 -> confidence ~0.5.
+    # A perfect match (same vector) has cosine 1.0 -> confidence 1.0.
+    # An anti-correlated vector has cosine -1.0 -> confidence 0.0.
+    # The threshold 0.60 maps to cosine 0.20 (weak positive alignment) --
+    # conservative enough to catch face-down cards without losing real matches.
+    confidence = float(np.clip((best_cosine + 1.0) / 2.0, 0.0, 1.0))
+
+    if confidence < _EMBED_CONFIDENCE_THRESHOLD:
+        return ("unknown", "unknown", round(confidence, 4))
+
+    winner = embed_gallery.entries[best_idx]
+    return (winner.identity, winner.role_class, round(confidence, 4))
+
+
+def make_embedding_identifier(
+    embedder: "object",       # OnnxEmbedder
+    embed_gallery: "object",  # EmbeddingGallery
+) -> Callable[[np.ndarray], tuple[str, str, float]]:
+    """Return a single-argument callable that wraps classify_crop_embedding.
+
+    Bridges the embedding classifier into the same 1-argument pipeline interface
+    used by make_gallery_identifier.
+
+    Usage
+    -----
+        embedder = OnnxEmbedder()
+        embed_gallery = build_embedding_gallery(classical_gallery, embedder)
+        identifier = make_embedding_identifier(embedder, embed_gallery)
+        snapshot = run_pipeline(image, source, identifier=identifier)
+    """
+    def _embedding_identify(card_crop: np.ndarray) -> tuple[str, str, float]:
+        return classify_crop_embedding(card_crop, embedder, embed_gallery)
+
+    return _embedding_identify

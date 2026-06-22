@@ -1,17 +1,21 @@
 # CodeDocs/sources/dbcv/identify.py
 
-**Status:** Stage 2 — classical HSV histogram matcher + ORB tiebreaker.
-Stub retained for teaching comparison. Gallery-aware `classify_crop` is the
-real implementation; `identify()` still returns stub for backward compatibility.
+**Status:** Stage 2 (classical) + Stage 3 (embedding-NN) — updated 2026-06-22.
+Both classifiers live here. Classical is retained as a selectable baseline.
+Embedding-NN (`classify_crop_embedding`) is the new default identifier wired
+into the API lifespan via `make_embedding_identifier`.
 
 **Purpose:** Given a localized card crop, identifies the townee, role class,
-and confidence.  Primary method: 2-D HSV colour histogram correlation.
-Tiebreaker: ORB feature match count when top-2 scores are within 0.05.
+and confidence. Two implementations:
+- Classical: 2-D HSV histogram correlation + ORB tiebreaker.
+- Embedding-NN: ONNX cosine nearest-neighbor over prototype embeddings (Stage 3).
 
 **Who uses it:**
-- `dbcv/pipeline.py` — imports `identify` as the default `identifier` argument
-- `dbcv/api.py` — calls `make_gallery_identifier(gallery)` in lifespan to get the real identifier
-- `tests/test_identify.py` — tests all exported functions
+- `dbcv/pipeline.py` — imports `identify` as the legacy default `identifier` argument
+- `dbcv/api.py` — lifespan calls `make_embedding_identifier(embedder, embed_gallery)` for the default;
+  `make_gallery_identifier(gallery)` kept as the classical fallback/baseline
+- `tests/test_identify.py` — tests classical functions
+- `tests/test_embed.py` — tests embedding functions
 
 ---
 
@@ -110,13 +114,60 @@ invariant to the crop-vs-reference gap from training examples.
 
 ---
 
+---
+
+## Stage 3 additions — Embedding-NN identifier
+
+### `classify_crop_embedding(card_crop, embedder, embed_gallery) -> (identity, role_class, confidence)` (line ~400)
+```python
+def classify_crop_embedding(
+    card_crop: np.ndarray,
+    embedder: OnnxEmbedder,
+    embed_gallery: EmbeddingGallery,
+) -> tuple[str, str, float]:
+```
+Cosine nearest-neighbor over the embedding gallery.
+
+**Algorithm:**
+1. `embedder.embed(card_crop)` → [576] unit-norm vector.
+2. `embed_gallery.embeddings @ crop_vec` → [K] cosine similarity scores.
+3. Pick `argmax` → nearest prototype.
+4. Map cosine [-1,1] → confidence [0,1]: `(cosine + 1) / 2`.
+5. Return "unknown" if confidence < `_EMBED_CONFIDENCE_THRESHOLD` (0.60).
+
+**Threshold calibration:** Blank/face-down crops embed to cosine ≈ -0.23
+(confidence ≈ 0.38). Face-up board crops score 0.70-0.91 confidence.
+Threshold of 0.60 sits cleanly in the gap, rejecting degenerate inputs
+without suppressing real character crops.
+
+**Known limitation:** MobileNetV3-Small (ImageNet-pretrained, frozen)
+maps all cartoon game characters to a tight cluster in embedding space
+(inter-prototype cosines 0.65-0.94). The nearest-neighbor result is
+determined by small within-cluster differences; some characters with
+similar colour/texture statistics are confused. The model is a useful
+first baseline and correctly separates face-down from face-up; further
+improvement would require fine-tuning on labelled board crops.
+
+### `make_embedding_identifier(embedder, embed_gallery) -> Callable` (line ~480)
+Bridges `classify_crop_embedding` into the 1-arg pipeline interface.
+Used by the API lifespan to make the default identifier.
+
+### Constants (Stage 3)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `_EMBED_CONFIDENCE_THRESHOLD` | 0.60 | Minimum cosine→conf to report a match |
+
+---
+
 ## Pipeline wiring
 
-`pipeline.py` `run_pipeline` still has `identifier=identify` as its default,
-so bare calls (without gallery) behave as before (stub).
+`pipeline.py` `run_pipeline` still has `identifier=identify` (stub) as its default,
+so bare calls (without gallery) behave as before.
 
-`api.py` lifespan now calls `make_gallery_identifier(gallery)` and stores
-the result on `app.state.identifier`, then passes it to `run_pipeline`.
+`api.py` lifespan (Stage 3) now calls `make_embedding_identifier(embedder, embed_gallery)`
+and stores it on `app.state.identifier` as the **default identifier**.
+The classical identifier is stored on `app.state.classical_identifier` as a fallback/baseline.
 
-The upgrade path (Stage 3 embedding-NN) fits here: swap `make_gallery_identifier`
-with an embedding-based closure and the pipeline is unchanged.
+If the ONNX file is absent at startup, the lifespan warns and falls back to the
+classical identifier automatically — the server still starts and serves requests.

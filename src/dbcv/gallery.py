@@ -361,3 +361,176 @@ def build_gallery(art_root: Path | str | None = None) -> Gallery:
         role_classes=sorted(seen_role_classes),
     )
     return gallery
+
+
+# ---------------------------------------------------------------------------
+# Embedding gallery (Stage 3 — embedding-NN identifier)
+# ---------------------------------------------------------------------------
+
+
+class EmbeddingGalleryEntry(NamedTuple):
+    """One reference entry in the embedding gallery.
+
+    Holds the L2-normalised prototype embedding for one identity.
+    The prototype is computed as the mean of all reference embeddings for
+    that identity, then re-normalised — the "prototypical network" approach
+    (Snell et al., NeurIPS 2017).  When there is only one reference per
+    identity this is equivalent to the single-image embedding.
+    """
+
+    identity: str       # e.g. "Alchemist" (alias-resolved)
+    role_class: str     # "villager" | "minion" | "outcast" | "demon"
+    embedding: np.ndarray  # [576] float32, unit L2 norm
+
+
+@dataclass
+class EmbeddingGallery:
+    """Container for all embedding prototypes.
+
+    Attributes
+    ----------
+    entries:
+        One entry per unique (identity, role_class) pair.
+    townee_names:
+        Sorted unique identity strings (same set as the classical Gallery).
+    role_classes:
+        Sorted unique role_class strings.
+    embeddings:
+        Stacked [K, 576] float32 array where K = len(entries).
+        Kept pre-stacked for fast cosine-similarity via a single matmul.
+    """
+
+    entries: list[EmbeddingGalleryEntry] = field(default_factory=list)
+    townee_names: list[str] = field(default_factory=list)
+    role_classes: list[str] = field(default_factory=list)
+    embeddings: np.ndarray = field(default_factory=lambda: np.empty((0, 0), dtype=np.float32))
+
+    @property
+    def n_classes(self) -> int:
+        return len(self.entries)
+
+
+def build_embedding_gallery(
+    classical_gallery: "Gallery",
+    embedder: "object",  # OnnxEmbedder; using string annotation to avoid circular import
+    art_root: Path | str | None = None,
+) -> "EmbeddingGallery":
+    """Build an in-memory embedding gallery from the reference art.
+
+    For each townee identity, loads all reference PNGs (same art sub-region
+    crop the classical gallery uses), embeds each via the OnnxEmbedder, then
+    computes a prototypical mean embedding (per Snell et al. 2017).  The mean
+    is re-normalised to keep it on the unit sphere.
+
+    This function intentionally does NOT import torch; it relies entirely on
+    the OnnxEmbedder (onnxruntime) and numpy.
+
+    Parameters
+    ----------
+    classical_gallery:
+        Pre-built classical Gallery.  Its entries carry the already-loaded
+        reference BGR images via their file stems, and the same art_root
+        convention is reused so we don't re-read the directory.
+    embedder:
+        An OnnxEmbedder instance (from src/dbcv/embed.py).
+    art_root:
+        Path to knowledge-base/card-art/ directory.  Defaults to the same
+        canonical location used by build_gallery().
+
+    Returns
+    -------
+    EmbeddingGallery
+        K entries (K = n_townees in practice, using mean-pooled prototypes).
+        The .embeddings array is shape [K, 576], float32, row-normalised.
+
+    Teaching note
+    -------------
+    The key art-swap property is preserved: on an art swap you re-run this
+    function with the new art directory (just like build_gallery).  No weights
+    are updated; the new reference images are embedded in seconds.
+
+    The prototypical mean approach (average multiple reference views per class,
+    re-normalise) consistently outperforms single-embedding lookup on held-out
+    samples in the few-shot learning literature (Snell et al. 2017).  For our
+    44-class problem with 1-2 references per class the gain is modest but free.
+    """
+    # Anchor default path identically to build_gallery()
+    if art_root is None:
+        _repo_root = Path(__file__).resolve().parents[2]
+        art_root = _repo_root / "knowledge-base" / "card-art"
+    else:
+        art_root = Path(art_root).resolve()
+
+    if not art_root.exists():
+        raise FileNotFoundError(f"Card-art root not found: {art_root}")
+
+    # Collect per-identity embeddings: identity -> list of embedding vectors
+    identity_embeddings: dict[tuple[str, str], list[np.ndarray]] = {}
+
+    for role_class_dir in sorted(art_root.iterdir()):
+        if not role_class_dir.is_dir():
+            continue
+        role_class = role_class_dir.name.lower()
+
+        for identity_dir in sorted(role_class_dir.iterdir()):
+            if not identity_dir.is_dir():
+                continue
+
+            raw_identity = identity_dir.name
+            identity = _identity_from_dir(raw_identity)
+            key = (identity, role_class)
+
+            if key not in identity_embeddings:
+                identity_embeddings[key] = []
+
+            for png_path in sorted(identity_dir.glob("*.png")):
+                bgr = _load_reference_image(png_path)
+                if bgr is None:
+                    continue
+
+                # Embed using the ONNX embedder (already L2-normalised [576] vector)
+                vec = embedder.embed(bgr)
+                if vec is not None and vec.size > 0:
+                    identity_embeddings[key].append(vec)
+
+    if not identity_embeddings:
+        raise ValueError(f"No reference images could be embedded from {art_root}")
+
+    # Build prototype entries: mean-pool all embeddings per identity, re-normalise
+    entries: list[EmbeddingGalleryEntry] = []
+    seen_identities: set[str] = set()
+    seen_role_classes: set[str] = set()
+
+    for (identity, role_class), vecs in sorted(identity_embeddings.items()):
+        if not vecs:
+            continue
+
+        # Prototypical mean: average embeddings, re-normalise
+        proto = np.mean(np.stack(vecs, axis=0), axis=0)  # [576]
+        norm = float(np.linalg.norm(proto))
+        if norm < 1e-9:
+            continue  # degenerate reference; skip
+        proto = (proto / norm).astype(np.float32)
+
+        entries.append(
+            EmbeddingGalleryEntry(
+                identity=identity,
+                role_class=role_class,
+                embedding=proto,
+            )
+        )
+        seen_identities.add(identity)
+        seen_role_classes.add(role_class)
+
+    if not entries:
+        raise ValueError("All reference embeddings were degenerate; gallery is empty.")
+
+    # Stack prototype embeddings into a [K, 576] matrix for fast batch cosine similarity
+    embeddings_matrix = np.stack([e.embedding for e in entries], axis=0)  # [K, 576]
+
+    return EmbeddingGallery(
+        entries=entries,
+        townee_names=sorted(seen_identities),
+        role_classes=sorted(seen_role_classes),
+        embeddings=embeddings_matrix,
+    )

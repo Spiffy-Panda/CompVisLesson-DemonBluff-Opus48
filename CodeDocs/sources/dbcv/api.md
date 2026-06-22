@@ -1,6 +1,6 @@
 # CodeDocs/sources/dbcv/api.py
 
-**Status:** Stage 2 active — single endpoint; gallery identifier built in lifespan.
+**Status:** Stage 3 active — single endpoint; embedding-NN identifier built in lifespan (classical retained as fallback).
 
 **Purpose:** FastAPI application object and the `POST /v1/snapshot` endpoint.
 Follows the lifespan + plain-def patterns from research/RESEARCH.md entry 5.
@@ -21,7 +21,13 @@ async def lifespan(application: FastAPI):
 Runs at startup (before first request) and shutdown.  Sets on `application.state`:
 - `settings` — `Settings` instance from `get_settings()`
 - `gallery` — `Gallery` object from `build_gallery()` (67 references, 43 townees)
-- `identifier` — callable from `make_gallery_identifier(gallery)` (Stage 2 classical matcher)
+- `classical_identifier` — callable from `make_gallery_identifier(gallery)` (Stage 2, retained as fallback)
+- `embedder` — `OnnxEmbedder` instance (loaded from `models/mobilenetv3_small_embed.onnx`)
+- `embed_gallery` — `EmbeddingGallery` from `build_embedding_gallery()` (43 prototypes, [43,576] matrix)
+- `identifier` — `make_embedding_identifier(embedder, embed_gallery)` (Stage 3, **the default**)
+
+If the ONNX file is absent, the lifespan emits a `warnings.warn` and falls back:
+`identifier` = `classical_identifier`; `embedder` and `embed_gallery` = None.
 
 **Teaching note:** `@app.on_event("startup")` is deprecated — `lifespan` is
 the current recommended pattern (FastAPI docs, research/RESEARCH.md entry 5 src 1).

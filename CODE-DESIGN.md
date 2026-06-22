@@ -11,23 +11,30 @@ The map of `src/`. Read this and `CodeDocs/00_PROJECT.md` **before** opening any
 
 ## Status
 
-**Stages 0–2 (classical/CPU) + the REST slice landed 2026-06-22.**
-`src/dbcv/` contains the frame-state gate, classical localizer, gallery +
-classical identifier, assembly, pipeline, and the FastAPI app. A CLI runner
-lives at `utils/python/run_pipeline.py` (cataloged in `utils/README.md`).
-**60 tests pass** (the `src/dbcv` suite + the CLI helper tests). Note: the suite
-runs ~70s because the card-art gallery rebuilds across test files — a tracked
-cleanup task exists to share one session-scoped gallery.
+**Stages 0–3 (classical + embedding-NN) + REST + CLI landed 2026-06-22.**
+`src/dbcv/` now contains the full package through Stage 3:
+- Stage 0 (frame-state gate): `frame_state.py`
+- Stage 1 (classical localizer): `localize.py`
+- Stage 2 (classical identification baseline): `gallery.py` + `identify.py` (`classify_crop`)
+- Stage 3 (embedding-NN identifier): `embed.py` (new) + `gallery.py` (`build_embedding_gallery`) +
+  `identify.py` (`classify_crop_embedding`)
+- REST: `api.py` — embedding-NN is the default identifier; classical retained as fallback
+- CLI: `utils/python/run_pipeline.py`
+- Dev export tool: `utils/python/export_backbone.py` (requires torch; generates `models/*.onnx`)
+
+**81 tests pass** (60 original + 21 new embedding tests). Suite runtime ~295s (gallery rebuilds
+across test modules — the cleanup task to share session-scoped galleries is still tracked).
 
 Source overviews live under `CodeDocs/sources/dbcv/`:
 - [`schema.md`](sources/dbcv/schema.md) — Pydantic v2 models (`GameStateSnapshot`, etc.)
 - [`frame_state.md`](sources/dbcv/frame_state.md) — Stage 0 frame-state gate (`classify_frame_state`)
 - [`localize.md`](sources/dbcv/localize.md) — localizer interface + classical implementation
-- [`gallery.md`](sources/dbcv/gallery.md) — **NEW** gallery builder (`build_gallery`, `Gallery`)
-- [`identify.md`](sources/dbcv/identify.md) — classical HSV matcher + stub (Stage 2)
+- [`gallery.md`](sources/dbcv/gallery.md) — classical gallery + **Stage 3** embedding gallery
+- [`embed.md`](sources/dbcv/embed.md) — **NEW** `OnnxEmbedder` (Stage 3 runtime, no torch)
+- [`identify.md`](sources/dbcv/identify.md) — classical HSV matcher + Stage 3 embedding-NN identifier
 - [`assemble.md`](sources/dbcv/assemble.md) — snapshot assembly (pure function)
 - [`pipeline.md`](sources/dbcv/pipeline.md) — end-to-end orchestration + `crop_relative`
-- [`api.md`](sources/dbcv/api.md) — FastAPI app, lifespan (builds gallery), `POST /v1/snapshot`
+- [`api.md`](sources/dbcv/api.md) — FastAPI app, lifespan (builds both galleries), `POST /v1/snapshot`
 - [`config.md`](sources/dbcv/config.md) — pydantic-settings `Settings`
 
 I/O contracts updated in `CodeDocs/io/`:
