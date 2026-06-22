@@ -16,6 +16,10 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Lesson modules 01 (framing) + 09 (staying alive) → 8/10 authored
+
+Authored the two "bookend" modules: `Lesson-Plan/modules/01_framing.md` (the course's front door — why this project teaches CV through one genuinely-constrained real system; the constraints-as-characters from `PROJECT-PITCH.md`; a preview of the pipeline arc; cites the compute-budget research entry) and `09_staying-alive.md` (the art-swap-cheap thesis as shipped — localization HSV re-tune, gallery rebuild with zero training, font re-render for the future OCR; why the trained classifier was rejected for production; honest that drift/health monitoring is design-not-code). **Lesson plan now 8/10 authored** (00–05, 08, 09); only **06 (on-card OCR)** and **07 (state assembly/temporal)** remain, and both correctly await their unbuilt pipeline stages. Citations all trace to existing RESEARCH entries / PROJECT-PITCH / shipped-code docstrings; no new research or desync.
+
 ## 2026-06-22 — Lesson modules 03 (resolution geometry) + 08 (REST) + Module 04 reconciliation
 
 Authored `Lesson-Plan/modules/03_resolution-agnostic-geometry.md` (the "never bake a resolution" principle as enforced in shipped code — `Resolution` from `image.shape`, `bbox_rel` fractions, thresholds relative to `min(W,H)`, relative→pixel only at the edge via `crop_relative`; the self-correcting resolution test; the 1280×720-vs-1920×1080 sampler-downscale story) and `08_rest-serving.md` (lifespan load-once onto `app.state`, plain-`def`-in-threadpool vs event-loop-blocking `async def`, versioned `GameStateSnapshot` + `schema_version`, the 0.1.0→0.2.0 bump as versioning-in-action; cites RESEARCH entry 5). **Inventory now 6/10 authored** (00, 02, 03, 04, 05, 08; planned: 01, 06, 07, 09 — 06/07 await the unbuilt OCR/temporal stages).

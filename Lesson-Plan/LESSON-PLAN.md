@@ -55,7 +55,7 @@ A draft spine, not a commitment — modules earn their place from real pipeline 
 | # | Slug | Status | Backing research |
 |---|------|--------|------------------|
 | 00 | `python-environments` | Authored — `modules/00_python-environments.md` | "Python environment & dependency management (venv/virtualenv/pip/conda/uv) — 2026-06-22" |
-| 01 | _(framing-the-problem)_ | Planned | — |
+| 01 | `framing` | Authored — `modules/01_framing.md` | `PROJECT-PITCH.md` (constraints table + design narrative); `research/RESEARCH.md` "Runtime compute budget — 2026-06-21" |
 | 02 | `frame-selection` | Authored — `modules/02_frame-selection.md` | "Frame selection / keyframe extraction from long gameplay video — 2026-06-21" |
 | 03 | `resolution-agnostic-geometry` | Authored — `modules/03_resolution-agnostic-geometry.md` | CLAUDE.md ("Never bake in a resolution" constraint); "Card/region localization robust to art swaps under a tight compute budget — 2026-06-21" |
 | 04 | `card-localization` | Authored — `modules/04_card-localization.md` | "Card/region localization robust to art swaps under a tight compute budget — 2026-06-21" |
@@ -63,6 +63,6 @@ A draft spine, not a commitment — modules earn their place from real pipeline 
 | 06 | _(on-card-text)_ | Planned | "Lightweight OCR for short on-card text and numbers in game UI — 2026-06-21" |
 | 07 | _(game-state-assembly)_ | Planned | — |
 | 08 | `rest-serving` | Authored — `modules/08_rest-serving.md` | "Serving CV inference over a REST API (Python) — 2026-06-21" |
-| 09 | _(monitoring-and-retraining)_ | Planned | — |
+| 09 | `staying-alive` | Authored — `modules/09_staying-alive.md` | `research/RESEARCH.md` "Card identification — 2026-06-21"; "Runtime compute budget — 2026-06-21"; "Lightweight OCR — 2026-06-21"; `src/dbcv/gallery.py`; `src/dbcv/localize.py` |
 
 **Placement note (Module 00):** The environment module is a prerequisite cross-cutting concern, not a CV technique in the 9-module arc. It is slotted as Module 00 so the arc (Modules 01–09) can remain intact. Learners should complete it before running any pipeline code.
