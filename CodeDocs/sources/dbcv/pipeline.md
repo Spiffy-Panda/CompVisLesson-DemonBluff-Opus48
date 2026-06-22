@@ -50,7 +50,9 @@ def run_pipeline(
 - `source` — provenance metadata
 - `localizer` — defaults to `classical_localize` (validated implementation);
   pass `stub_localize` explicitly to use the teaching baseline
-- `identifier` — defaults to `identify` (stub); accepts any matching callable
+- `identifier` — defaults to `identify` (stub); accepts any matching callable.
+  Pass `make_gallery_identifier(gallery)` from `dbcv.identify` to use the
+  classical gallery matcher (Stage 2). The API does this via `app.state.identifier`.
 - `frame_state_fn` — defaults to `classify_frame_state` (Stage 0 gate);
   inject `lambda _: "board"` in tests to skip the gate
 

@@ -11,18 +11,21 @@ The map of `src/`. Read this and `CodeDocs/00_PROJECT.md` **before** opening any
 
 ## Status
 
-**Vertical-slice skeleton landed 2026-06-22.** `src/dbcv/` now exists.
+**Stage 2 (classical identification baseline) landed 2026-06-22.**
+`src/dbcv/` now contains the full Stage 2 package including gallery and
+classical matcher. 46 tests pass.
 
 Source overviews live under `CodeDocs/sources/dbcv/`:
 - [`schema.md`](sources/dbcv/schema.md) — Pydantic v2 models (`GameStateSnapshot`, etc.)
 - [`frame_state.md`](sources/dbcv/frame_state.md) — Stage 0 frame-state gate (`classify_frame_state`)
-- [`localize.md`](sources/dbcv/localize.md) — localizer interface + stub
-- [`identify.md`](sources/dbcv/identify.md) — identifier interface + stub
+- [`localize.md`](sources/dbcv/localize.md) — localizer interface + classical implementation
+- [`gallery.md`](sources/dbcv/gallery.md) — **NEW** gallery builder (`build_gallery`, `Gallery`)
+- [`identify.md`](sources/dbcv/identify.md) — classical HSV matcher + stub (Stage 2)
 - [`assemble.md`](sources/dbcv/assemble.md) — snapshot assembly (pure function)
 - [`pipeline.md`](sources/dbcv/pipeline.md) — end-to-end orchestration + `crop_relative`
-- [`api.md`](sources/dbcv/api.md) — FastAPI app, lifespan, `POST /v1/snapshot`
+- [`api.md`](sources/dbcv/api.md) — FastAPI app, lifespan (builds gallery), `POST /v1/snapshot`
 - [`config.md`](sources/dbcv/config.md) — pydantic-settings `Settings`
 
 I/O contracts updated in `CodeDocs/io/`:
-- `inputs.md` — documents new API frame upload format
+- `inputs.md` — card-art gallery documented as active Stage 2 input; API upload format
 - `outputs.md` — `GameStateSnapshot` schema at version **0.2.0** (added `frame_state` field)

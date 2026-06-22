@@ -41,6 +41,8 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from dbcv.config import get_settings
+from dbcv.gallery import build_gallery
+from dbcv.identify import make_gallery_identifier
 from dbcv.pipeline import run_pipeline
 from dbcv.schema import GameStateSnapshot, Source
 
@@ -75,14 +77,23 @@ async def lifespan(application: FastAPI):
     # --- startup ---
     settings = get_settings()
     application.state.settings = settings
-    # Future: load ONNX InferenceSession(s) here
-    application.state.localizer = None   # None → pipeline uses default stub
-    application.state.identifier = None  # None → pipeline uses default stub
+
+    # Build the reference gallery once at startup.
+    # The gallery loads ~67 small PNGs from knowledge-base/card-art/ and
+    # precomputes HSV histograms + ORB descriptors entirely in-memory (~100 ms).
+    # It is stored on app.state so every request shares the same pre-built object.
+    #
+    # On an art swap: restart the server (or call build_gallery() again).
+    # No training required — the gallery is rebuilt purely from the new PNGs.
+    # This is the "load once" pattern from research/RESEARCH.md entry 5.
+    gallery = build_gallery()
+    application.state.gallery = gallery
+    application.state.identifier = make_gallery_identifier(gallery)
 
     yield  # <-- application is live here
 
     # --- shutdown ---
-    # Future: close sessions, release GPU memory, etc.
+    # Gallery is in-memory only; nothing to close.
 
 
 # ---------------------------------------------------------------------------
@@ -174,13 +185,15 @@ def snapshot(
 
     # --- Run the pipeline ---
     # The pipeline reads resolution from image_array.shape — never from a constant.
-    # Localizer and identifier come from app.state when real models exist;
-    # for the slice, passing None causes run_pipeline to use its defaults (stubs).
+    # The classical gallery identifier was built in lifespan and stored on app.state.
+    # We access it via the module-level ``app`` object (the lifespan already ran).
+    # If for any reason the identifier is absent, run_pipeline falls back to the
+    # stub identifier via its default argument.
+    identifier_fn = getattr(app.state, "identifier", None)
     snapshot_result = run_pipeline(
         image=image_array,
         source=source,
-        # Future: localizer=request.app.state.localizer or stub_localize,
-        #         identifier=request.app.state.identifier or identify,
+        **({"identifier": identifier_fn} if identifier_fn is not None else {}),
     )
 
     return snapshot_result

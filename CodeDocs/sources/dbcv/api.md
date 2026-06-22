@@ -1,6 +1,6 @@
 # CodeDocs/sources/dbcv/api.py
 
-**Status:** slice/active — single endpoint, stub localizer/identifier.
+**Status:** Stage 2 active — single endpoint; gallery identifier built in lifespan.
 
 **Purpose:** FastAPI application object and the `POST /v1/snapshot` endpoint.
 Follows the lifespan + plain-def patterns from research/RESEARCH.md entry 5.
@@ -20,8 +20,8 @@ async def lifespan(application: FastAPI):
 ```
 Runs at startup (before first request) and shutdown.  Sets on `application.state`:
 - `settings` — `Settings` instance from `get_settings()`
-- `localizer` — `None` (slice uses stub default)
-- `identifier` — `None` (slice uses stub default)
+- `gallery` — `Gallery` object from `build_gallery()` (67 references, 43 townees)
+- `identifier` — callable from `make_gallery_identifier(gallery)` (Stage 2 classical matcher)
 
 **Teaching note:** `@app.on_event("startup")` is deprecated — `lifespan` is
 the current recommended pattern (FastAPI docs, research/RESEARCH.md entry 5 src 1).

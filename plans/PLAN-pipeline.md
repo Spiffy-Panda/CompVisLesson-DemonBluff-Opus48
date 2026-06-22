@@ -23,10 +23,11 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 - [ ] Output resolution-relative bboxes (`CodeDocs/io/outputs.md` schema).
 
 ## Stage 2 — Identification (embedding-NN gallery + OCR cross-check)
-- [ ] Build the reference gallery from `knowledge-base/card-art/` (per art set, versioned).
-- [ ] Small frozen embedding backbone → NN over gallery; prototypical averaging of references.
-- [ ] Name-label OCR cross-check; reconcile visual + text identity with confidences.
-- [ ] Retrain story: art swap = re-embed references, **zero training**. Verify.
+> **Classical baseline shipped 2026-06-22** (`src/dbcv/gallery.py` + `identify.py`): in-memory gallery (43 townees / 67 refs incl. skins), HSV-histogram match + ORB tiebreaker. Honest accuracy ~40–60% on face-up cards, correct "unknown" on face-down → motivates the embedding upgrade. Embedding-NN **deferred** (needs onnxruntime — first heavy dep; logged in DEV-LOG).
+- [x] Build the reference gallery from `knowledge-base/card-art/` *(in-memory; rebuild = the versioning story)*.
+- [ ] Small frozen embedding backbone → NN over gallery; prototypical averaging of references. *(deferred — needs onnxruntime + a model export; conservative path)*
+- [ ] Name-label OCR cross-check; reconcile visual + text identity with confidences. *(blocked on Stage 3)*
+- [x] Retrain story: art swap = re-fit gallery, **zero training** *(preserved — `build_gallery()` rebuilds in-memory; for embeddings this becomes re-embed)*.
 
 ## Stage 3 — On-card / HUD reading (closed-vocab recognizer)
 - [ ] Tiny custom recognizer for role names + 1–2-digit counts (rendered-crop training set).

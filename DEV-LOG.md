@@ -16,6 +16,20 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Stage 2: classical identification baseline (embedding-NN deferred)
+
+**Context:** Cards were being localized but not named (`identify` was a stub). Built the classical identification baseline per the conservative directive — opencv+numpy only, **no torch/onnxruntime, no model download** — explicitly deferring the research-preferred embedding-NN to a later, heavier round.
+
+**What landed:** `src/dbcv/gallery.py` — `build_gallery()` walks `knowledge-base/card-art/<class>/<role>/*.png` and builds an **in-memory** gallery (no persisted artifact → card art stays a gitignored input, Rule 6): **43 townees / 67 references** (24 have skin variants, all loaded). Directory = label (`class`→role_class, dir→identity); `Twin_Minion`→`Minion` aliased. `src/dbcv/identify.py` rewritten: `classify_crop` matches a card crop by **2-D HSV (hue×sat) histogram correlation** (primary — value excluded to survive state-tinting) with an **ORB-feature tiebreaker** when top-2 are within 0.05; confidence = clamped Pearson correlation, threshold 0.40 → else "unknown". Gallery built once in the API `lifespan` onto `app.state` (load-once pattern). **46/46 pytest green.**
+
+**Honest result (the pedagogical point):** ~**40–60% on face-up cards**, **100% correct "unknown" on face-down cards** (a uniform card back matches no character art → low confidence, which is the right answer). A `Scout` was predicted twice in one frame (impossible in-game) — a real false match. **Verdict: classical histograms are a useful, honest *lower bound* but insufficient for production → the embedding-NN upgrade is warranted.** This is exactly the worked example for the (future) identification lesson module.
+
+**Teaching bug found:** `cv2.compareHist(zeros, anything)` returns **1.0** (Pearson 0/0 → clamped), so a degenerate all-black crop "perfectly matched" everything. Fixed with a zero-sum guard. Good "always test degenerate inputs" lesson material.
+
+**Known issue (tracked separately, not a blocker):** the suite now runs ~73s (was ~1.4s) because the gallery rebuilds ~7× across test files + per-frame matching in API tests. A session-scoped shared-gallery fixture (and injecting the gallery into the app for tests) would fix it. Deferred so as not to perturb the just-validated identifier under this run's budget.
+
+**Deferred (logged per conservative directive):** embedding-NN identification — a small frozen backbone (e.g. MobileNetV3) exported to ONNX + nearest-neighbour over the gallery, served on CPU via onnxruntime. Needs `onnxruntime` (+ a one-time model export/download) — the first genuinely "heavier" dependency. Left for when Panda is back to approve the dep, or a later round.
+
 ## 2026-06-22 — Deepening round 1: foundation lesson modules + Stage 0 state gate
 
 Two parallel sub-agents on disjoint tiers (lessons vs `src/`), both light/classical (conservative path).
