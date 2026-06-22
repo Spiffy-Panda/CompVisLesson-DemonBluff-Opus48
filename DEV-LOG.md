@@ -16,6 +16,18 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Repo-local venv + start of the pipeline build (overseer run)
+
+**Context:** Long unattended "overseer" session: spawn sub-agents to build the pipeline (Stages 0–5) toward the functional + teaching goals, committing as we go, no push. User set three guardrails up front: (1) **repo-local env**, and *teach* uv vs conda vs pip as a course module; (2) **confirm the approach works end-to-end first, then step back and deepen**; (3) at forks, **prefer the conservative/lighter/classical path** and log it.
+
+**Choice — environment:** `python -m venv .venv` at repo root (gitignored) + pinned `requirements.txt`. Installed numpy 2.5, pillow 12.2, **opencv-python-headless 4.13**, fastapi 0.138, uvicorn 0.49, pydantic 2.13, httpx 0.28, pytest 9.1. Smoke-imported all via a scrap script (Rule 1 — never `python -c`). Standard interpreter for every script/agent from here: `.venv/Scripts/python.exe`.
+
+**Why venv+pip over uv/conda:** zero-install, universally reproducible baseline — every Python ships `venv`; a learner can follow without first installing a tool. `opencv-python-headless` (not `opencv-python`) because the pipeline is server/batch, no GUI. uv (speed) and conda (binary deps) become the *alternatives* in the owed env-management lesson module, not a runtime requirement. Did **not** install onnxruntime/torch/imagehash yet — deferred until a stage's research justifies them (conservative path).
+
+**Build plan:** thin **vertical slice** next — load an existing sampled frame → classical localization (the riskiest assumption) → placeholder identity → `GameStateSnapshot` → `POST /v1/snapshot` — to validate the architecture, schema, and REST contract on real frames before deepening any single stage. Then reassess. Recorded in `PLAN-pipeline.md` ("Build approach").
+
+**Notes / risks:** A fresh venv is isolated, so the global numpy/fastapi/etc. do **not** carry in — `requirements.txt` is the source of truth. The env-management lesson module is owed (tracked in `PLAN-pipeline.md` cross-cutting). Localization viability on our footage is still unproven; the slice exists to find out early.
+
 ## 2026-06-22 — Claude launcher + townee clarification
 
 - Added `.claude/launch.json` — the Claude Code desktop launcher (`local-server` → `python utils/python/serve_site.py --port 8000`). Verified via the preview MCP that it drives the running server and the site renders. Gitignored `.claude/settings.local.json` defensively (public repo). Backed out a `.vscode/launch.json` written from a first-pass misread of the request.

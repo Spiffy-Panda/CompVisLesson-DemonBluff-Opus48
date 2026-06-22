@@ -1,0 +1,36 @@
+# Runtime + dev dependencies for the Demon Bluff CV pipeline.
+#
+# Installed into a REPO-LOCAL virtual environment (.venv/, gitignored), created with
+# the Python standard library:
+#
+#     python -m venv .venv
+#     .venv/Scripts/python.exe -m pip install -r requirements.txt   # Windows
+#     .venv/bin/python        -m pip install -r requirements.txt    # macOS/Linux
+#
+# Why venv+pip (not uv or conda) for the project itself: it is the zero-install,
+# universally-reproducible baseline — every Python ships `venv`, every learner can
+# follow along without first installing a tool. uv (speed) and conda (binary/non-Python
+# deps) are taught as alternatives in the environment-management lesson module, not
+# required to run this code. Versions are pinned for reproducibility.
+
+# --- core array + image IO ---
+numpy==2.5.0
+pillow==12.2.0
+
+# --- classical computer vision (headless: no GUI deps, server-appropriate) ---
+opencv-python-headless==4.13.0.92
+
+# --- REST serving (models loaded once in lifespan; inference in plain def) ---
+fastapi==0.138.0
+uvicorn[standard]==0.49.0
+pydantic==2.13.4
+pydantic-settings==2.14.2
+
+# --- testing + the FastAPI TestClient transport ---
+httpx==0.28.1
+pytest==9.1.1
+
+# Deferred until a stage's research justifies it (conservative path):
+#   onnxruntime      — Stage 2/3 small-model serving on CPU (ONNX)
+#   torch/torchvision— Stage 2 embedding backbone export; Stage 3 recognizer training (dev-only, heavy)
+#   imagehash        — Stage 0 perceptual-hash dedup (or implement dHash in numpy)
