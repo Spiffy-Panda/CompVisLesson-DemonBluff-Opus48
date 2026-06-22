@@ -29,7 +29,7 @@ import numpy as np
 
 from dbcv.assemble import assemble
 from dbcv.identify import identify
-from dbcv.localize import BboxRel, LocalizerCallable, stub_localize
+from dbcv.localize import BboxRel, LocalizerCallable, classical_localize
 from dbcv.schema import GameStateSnapshot, Resolution, Source
 
 
@@ -93,7 +93,7 @@ def crop_relative(image: np.ndarray, bbox_rel: BboxRel) -> np.ndarray:
 def run_pipeline(
     image: np.ndarray,
     source: Source,
-    localizer: LocalizerCallable | Callable[..., list[BboxRel]] = stub_localize,
+    localizer: LocalizerCallable | Callable[..., list[BboxRel]] = classical_localize,
     identifier: Callable[[np.ndarray], tuple[str, str, float]] = identify,
 ) -> GameStateSnapshot:
     """Run the full frame → GameStateSnapshot pipeline.
@@ -106,8 +106,9 @@ def run_pipeline(
     source:
         Provenance metadata: which video, which frame index, what timestamp.
     localizer:
-        Callable matching ``LocalizerCallable``.  Defaults to ``stub_localize``.
-        The real classical localizer will be injected here once validated.
+        Callable matching ``LocalizerCallable``.  Defaults to ``classical_localize``,
+        the validated classical implementation.  Pass ``stub_localize`` explicitly
+        to revert to the teaching baseline (predictable output for certain tests).
     identifier:
         Callable ``(card_crop: np.ndarray) -> (identity, role_class, confidence)``.
         Defaults to the stub identifier.

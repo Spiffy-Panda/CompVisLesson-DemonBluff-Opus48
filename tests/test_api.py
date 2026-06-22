@@ -2,17 +2,24 @@
 tests/test_api.py — Integration test for POST /v1/snapshot.
 
 Tests that:
-  - The endpoint returns HTTP 200 for a real sampled frame.
+  - The endpoint returns HTTP 200 for a real sampled board frame.
   - The response validates as a GameStateSnapshot.
   - The ``resolution`` in the response matches the actual image dimensions
     (read independently from PIL — the server must have read them from the
     uploaded bytes, never from a hard-coded value).
-  - At least one card is present (the stub localizer guarantees >= 1 box).
+  - At least 4 cards are present (the classical localizer finds ~8 on a full
+    board; requiring >= 4 is robust to one or two edge-case missed detections).
   - Every bbox_rel component is in [0.0, 1.0].
 
-The test frame is located by globbing ``dataset/frames/Sample1/`` rather than
-hard-coding a filename, so it still works if frames are renamed or more are
-added.  The path is anchored to the repo root via Path(__file__).
+Frame selection
+---------------
+The test targets ``Sample1_003_t00460s.png``, a known board frame validated in
+the localizer spike (8/8 cards detected, 0 false positives).  Sample1_000 was
+the previous first-glob result but is a modal frame where the classical
+localizer correctly returns ~0 cards, which would break the ``>= 4`` assertion.
+
+If the preferred frame is absent (e.g. on a fresh clone before frame extraction),
+the test falls back to a glob of Sample1/ and skips if nothing is found.
 
 Rule 1 compliance: no inline interpreter calls.  No ``import`` on the command
 line.  All code runs through pytest.
@@ -20,15 +27,16 @@ line.  All code runs through pytest.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
+import cv2
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
 from dbcv.api import app
-from dbcv.schema import GameStateSnapshot
+from dbcv.localize import classical_localize
+from dbcv.schema import GameStateSnapshot, Resolution
 
 # ---------------------------------------------------------------------------
 # Locate a sample frame — anchored to repo root, no hard-coded filename
@@ -40,12 +48,33 @@ from dbcv.schema import GameStateSnapshot
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _FRAMES_DIR = _REPO_ROOT / "dataset" / "frames" / "Sample1"
 
+# Preferred frame: validated board frame (8/8 cards, 0 false positives in spike).
+# Named with prefix match to be stable across any minor filename suffix changes.
+_PREFERRED_STEM = "Sample1_003"
+
 
 def _find_sample_frame() -> Path:
-    """Return the first PNG in dataset/frames/Sample1/, sorted by name."""
+    """Return a deterministic board-state frame from dataset/frames/Sample1/.
+
+    Preference order:
+    1. Any frame whose stem starts with ``Sample1_003`` (the validated board frame).
+    2. If absent, fall back to the first PNG by sorted name — but skip if empty.
+
+    ``Sample1_000`` is intentionally NOT the first choice: it is a modal frame
+    where the classical localizer correctly returns ~0 cards, which would cause
+    the ``>= 4`` card assertion to fail.
+    """
+    # First: look for the preferred validated board frame
+    preferred = sorted(_FRAMES_DIR.glob(f"{_PREFERRED_STEM}*.png"))
+    if preferred:
+        return preferred[0]
+
+    # Fallback: grab whatever is first — warn the caller via pytest.skip if absent
     frames = sorted(_FRAMES_DIR.glob("*.png"))
     if not frames:
-        pytest.skip(f"No PNG frames found under {_FRAMES_DIR} — run frame extraction first.")
+        pytest.skip(
+            f"No PNG frames found under {_FRAMES_DIR} — run frame extraction first."
+        )
     return frames[0]
 
 
@@ -79,7 +108,7 @@ def actual_dimensions(sample_frame_path: Path) -> tuple[int, int]:
 
 
 # ---------------------------------------------------------------------------
-# Tests
+# API integration tests
 # ---------------------------------------------------------------------------
 
 
@@ -91,7 +120,7 @@ def test_snapshot_http_200(
         response = client.post(
             "/v1/snapshot",
             files={"file": ("frame.png", fh, "image/png")},
-            data={"video": "Sample1", "frame_index": 0, "timestamp_s": 115.0},
+            data={"video": "Sample1", "frame_index": 3, "timestamp_s": 460.0},
         )
     assert response.status_code == 200, (
         f"Expected 200; got {response.status_code}. Body: {response.text[:500]}"
@@ -143,10 +172,16 @@ def test_resolution_matches_actual_image(
     )
 
 
-def test_at_least_one_card_returned(
+def test_at_least_four_cards_returned(
     client: TestClient, sample_frame_path: Path
 ) -> None:
-    """The stub localizer guarantees at least one card box."""
+    """The classical localizer returns >= 4 cards on a full board frame.
+
+    The validated spike result for Sample1_003 is 8 cards.  Requiring >= 4 is
+    robust to any single-card misses at extreme frame positions while still
+    catching a catastrophic failure (stub-style 3 boxes, or zero detections on
+    a board frame).
+    """
     with open(sample_frame_path, "rb") as fh:
         response = client.post(
             "/v1/snapshot",
@@ -154,15 +189,17 @@ def test_at_least_one_card_returned(
         )
     assert response.status_code == 200
     snapshot = GameStateSnapshot.model_validate(response.json())
-    assert len(snapshot.cards) >= 1, (
-        "Expected at least one card; stub localizer should return 3 boxes."
+    assert len(snapshot.cards) >= 4, (
+        f"Expected >= 4 cards on a board frame; got {len(snapshot.cards)}. "
+        "If using Sample1_003 this should be ~8 — check that classical_localize "
+        "is the active default in pipeline.py."
     )
 
 
 def test_bbox_rel_all_in_unit_range(
     client: TestClient, sample_frame_path: Path
 ) -> None:
-    """Every bbox_rel component from the stub must be in [0.0, 1.0]."""
+    """Every bbox_rel component returned by the classical localizer must be in [0.0, 1.0]."""
     with open(sample_frame_path, "rb") as fh:
         response = client.post(
             "/v1/snapshot",
@@ -175,4 +212,49 @@ def test_bbox_rel_all_in_unit_range(
         for j, value in enumerate(card.bbox_rel):
             assert 0.0 <= value <= 1.0, (
                 f"Card {i} bbox_rel[{j}] = {value} is outside [0, 1]."
+            )
+
+
+# ---------------------------------------------------------------------------
+# Direct unit test: classical_localize on the validated board frame
+# ---------------------------------------------------------------------------
+
+
+def test_classical_localize_board_frame_count() -> None:
+    """classical_localize returns 5–12 boxes on the validated board frame.
+
+    Sample1_003_t00460s is the frame validated in the localizer spike (8/8 cards).
+    Requiring between 5 and 12 allows for minor detection variance while
+    definitively distinguishing a real-board detection (~8) from a stub result
+    (3) or a zero/catastrophic failure.
+
+    This is a *direct unit test* that calls classical_localize without the API
+    or pipeline layers, so failures here isolate the localizer itself.
+    """
+    frame_path = sorted(_FRAMES_DIR.glob(f"{_PREFERRED_STEM}*.png"))
+    if not frame_path:
+        pytest.skip(
+            f"Preferred board frame ({_PREFERRED_STEM}*.png) not found under "
+            f"{_FRAMES_DIR} — run frame extraction first."
+        )
+
+    # Decode with cv2 exactly as the pipeline does (BGR, full colour)
+    img = cv2.imread(str(frame_path[0]), cv2.IMREAD_COLOR)
+    assert img is not None, f"cv2.imread returned None for {frame_path[0]}"
+
+    h, w = img.shape[:2]
+    resolution = Resolution(w=w, h=h)
+
+    boxes = classical_localize(img, resolution)
+
+    assert 5 <= len(boxes) <= 12, (
+        f"Expected 5–12 boxes on a full board frame (spike result was 8); "
+        f"got {len(boxes)}.  Frame: {frame_path[0].name}"
+    )
+
+    # All components must be in [0, 1] — belt-and-suspenders check
+    for i, (bx, by, bw, bh) in enumerate(boxes):
+        for label, val in (("x", bx), ("y", by), ("w", bw), ("h", bh)):
+            assert 0.0 <= val <= 1.0, (
+                f"Box {i} component {label}={val} is outside [0, 1]."
             )

@@ -1,6 +1,7 @@
 # CodeDocs/sources/dbcv/pipeline.py
 
-**Status:** slice/active — end-to-end orchestration with stub localizer + identifier.
+**Status:** slice/active — end-to-end orchestration; default localizer updated
+to `classical_localize` (validated classical implementation).
 
 **Purpose:** Orchestrates the frame → GameStateSnapshot pipeline.  Reads
 resolution from `image.shape`, calls the localizer, crops each box,
@@ -36,14 +37,15 @@ Clamping (line 84): `max(0, min(coord, dimension))` on all four values.
 def run_pipeline(
     image: np.ndarray,
     source: Source,
-    localizer: LocalizerCallable = stub_localize,
+    localizer: LocalizerCallable = classical_localize,
     identifier: Callable[[np.ndarray], tuple[str, str, float]] = identify,
 ) -> GameStateSnapshot:
 ```
 **Parameters:**
 - `image` — decoded frame (H x W x C, typically BGR from cv2)
 - `source` — provenance metadata
-- `localizer` — defaults to `stub_localize`; accepts any `LocalizerCallable`
+- `localizer` — defaults to `classical_localize` (validated implementation);
+  pass `stub_localize` explicitly to use the teaching baseline
 - `identifier` — defaults to `identify` (stub); accepts any matching callable
 
 **Steps (lines 121–143):**
@@ -52,6 +54,24 @@ def run_pipeline(
 3. For each box: `crop_relative(image, bbox_rel)` → call `identifier(crop)`.
    Zero-size crops (degenerate boxes) → `("unknown", "unknown", 0.0)`.
 4. Call `assemble(source, resolution, boxes, identities)` → `GameStateSnapshot`.
+
+---
+
+## Default localizer change (2026-06-22)
+
+The `localizer` parameter default was updated from `stub_localize` to
+`classical_localize`.  This is the promoted, validated classical implementation
+(8/8 and 9/9 board cards exact on sample frames, 0 false positives).
+
+`stub_localize` is still available and still the right choice for tests that
+need predictable, image-content-independent output.  Pass it explicitly:
+
+```python
+run_pipeline(image, source, localizer=stub_localize)
+```
+
+See `CodeDocs/sources/dbcv/localize.md` for the full classical algorithm
+documentation and the teaching-baseline comparison table.
 
 ---
 

@@ -16,6 +16,10 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Classical localizer promoted into `src/`; approach confirmed
+
+Integrated the spike algorithm into `src/dbcv/localize.py` as `classical_localize` (5 stages: relative HUD-exclusion → HSV segmentation → morphology → contour/geometry filter → IoU-NMS), now the pipeline/API default; `stub_localize` retained as the teaching "before" baseline. Made the API test deterministic on a known board frame (`Sample1_003`, validated 8/8) and added a direct localizer unit test. **12/12 pytest green**; I verified the suite and eyeballed the overlay myself — boxes sit cleanly on all 8 ring cards, HUD + "Benji" overlay excluded. Recorded localization + the REST contract + the env choice as **confirmed** rows in the `PROJECT-PITCH.md` decisions table (superseding the provisional localization entry). This closes the "confirm the approach works first" milestone; next is the step-back into deepening (lesson modules for the validated foundation, then Stage 0's board/modal gate and Stage 2 identification).
+
 ## 2026-06-22 — Vertical slice lands + classical localization validated
 
 **Context:** First code in `src/`. Two parallel sub-agents: one built the end-to-end REST skeleton (stub localizer/identifier), one ran a classical-localization spike on the real sampled frames to test the project's central architectural bet.
