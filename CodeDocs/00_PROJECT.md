@@ -39,4 +39,10 @@ Each arrow is a design fork the lesson plan will teach, with the chosen techniqu
 
 ## Status
 
-No source files yet. When the first lands, add `CodeDocs/sources/<Project>/<File>.md` and keep `io/inputs.md` / `io/outputs.md` in sync (Rule 3).
+**Vertical-slice skeleton landed 2026-06-22.**  `src/dbcv/` contains the full
+package: schema, localizer (stub), identifier (stub), assembler, pipeline,
+FastAPI app, and settings.  Tests pass (`11 passed`).
+
+See `CODE-DESIGN.md` for the per-file overview index.  The next step is
+validating the real classical localizer (Stage 1) and dropping it in via the
+`localizer=` injection point in `run_pipeline`.

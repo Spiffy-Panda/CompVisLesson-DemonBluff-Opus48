@@ -1,0 +1,72 @@
+# CodeDocs/sources/dbcv/api.py
+
+**Status:** slice/active — single endpoint, stub localizer/identifier.
+
+**Purpose:** FastAPI application object and the `POST /v1/snapshot` endpoint.
+Follows the lifespan + plain-def patterns from research/RESEARCH.md entry 5.
+
+**Who uses it:**
+- `tests/test_api.py` — imports `app` for TestClient
+- Production: run via `uvicorn dbcv.api:app`
+
+---
+
+## Key signatures (with line numbers)
+
+### `lifespan(application: FastAPI)` async context manager — line 44
+```python
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+```
+Runs at startup (before first request) and shutdown.  Sets on `application.state`:
+- `settings` — `Settings` instance from `get_settings()`
+- `localizer` — `None` (slice uses stub default)
+- `identifier` — `None` (slice uses stub default)
+
+**Teaching note:** `@app.on_event("startup")` is deprecated — `lifespan` is
+the current recommended pattern (FastAPI docs, research/RESEARCH.md entry 5 src 1).
+
+### `app = FastAPI(...)` — line 74
+FastAPI application object.  Title: "Demon Bluff CV — snapshot API".
+Version: "0.1.0".  Passed `lifespan=lifespan`.
+
+### `snapshot(file, video, frame_index, timestamp_s) -> GameStateSnapshot` — line 93
+```python
+@app.post("/v1/snapshot", response_model=GameStateSnapshot)
+def snapshot(
+    file: UploadFile = File(...),
+    video: str = Form(default="unknown"),
+    frame_index: int = Form(default=0),
+    timestamp_s: float = Form(default=0.0),
+) -> GameStateSnapshot:
+```
+**Plain `def`** (not `async def`) so FastAPI runs it in the threadpool.
+CPU-bound CV inference in `async def` would block the event loop
+(research/RESEARCH.md entry 5, source 2 and 5).
+
+**Image decoding (line 126):**
+```python
+image_array = cv2.imdecode(
+    np.frombuffer(raw_bytes, dtype=np.uint8),
+    cv2.IMREAD_COLOR,
+)
+```
+Returns `None` on failure → raises `HTTPException(422)`.
+
+**Resolution:** read from `image_array.shape` inside `run_pipeline` — not from
+the request, not from a constant.
+
+---
+
+## Running locally
+
+```
+# src/ must be on PYTHONPATH (no editable install in the slice)
+$env:PYTHONPATH = "src"
+.venv\Scripts\uvicorn.exe dbcv.api:app --reload
+```
+
+Or equivalently with inline env:
+```
+$env:PYTHONPATH = "src"; .venv\Scripts\uvicorn.exe dbcv.api:app --reload
+```

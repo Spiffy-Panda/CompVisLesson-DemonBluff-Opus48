@@ -17,6 +17,7 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 - [ ] Dev-only: PySceneDetect segmentation of the long samples for dataset building.
 
 ## Stage 1 — Localization (classical, layout-based)
+> **Spike validated 2026-06-22 (confidence ~0.80):** classical localization works — 8/8 & 9/9 exact on clean board frames via HSV colour-segmentation → morphology → contour filter (area/aspect) → relative HUD-exclusion → IoU-NMS. **Badge blob-detection failed** (clue-text panels alias as badges) — badges are for *ordering*, not primary anchoring. Integration of the spike `localize()` into `src/` is the next step; deepening (skew-robustness, art-swap hue re-tuning, ring-geometry sanity check) follows.
 - [ ] Detect art-independent landmarks: the radial card ring, numbered position badges, panel/UI chrome.
 - [ ] Derive card slots relative to landmarks, scaled by measured resolution; handle **variable card count**.
 - [ ] Output resolution-relative bboxes (`CodeDocs/io/outputs.md` schema).
@@ -36,9 +37,9 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 - [ ] Merge per-card reads into the `GameStateSnapshot`; temporal smoothing across frames (handle modal occlusion).
 
 ## Stage 5 — REST service
-- [ ] FastAPI: models loaded once in `lifespan` onto `app.state`; inference in plain `def`.
-- [ ] Versioned Pydantic `GameStateSnapshot` (`schema_version`, `resolution` from media); `POST /v1/snapshot`.
-- [ ] Serve small models via ONNX Runtime (CPU); no batching.
+- [x] FastAPI: models loaded once in `lifespan` onto `app.state`; inference in plain `def`. *(slice, 2026-06-22 — `src/dbcv/api.py`; pattern in place, no models loaded yet)*
+- [x] Versioned Pydantic `GameStateSnapshot` (`schema_version`, `resolution` from media); `POST /v1/snapshot`. *(slice, 2026-06-22 — accepts an uploaded frame; resolution read from it)*
+- [ ] Serve small models via ONNX Runtime (CPU); no batching. *(deferred — no runtime models exist yet)*
 
 ## Cross-cutting
 - [x] Repo-local `.venv` + pinned `requirements.txt` (2026-06-22). Standard interpreter for all scripts/agents: `.venv/Scripts/python.exe`.

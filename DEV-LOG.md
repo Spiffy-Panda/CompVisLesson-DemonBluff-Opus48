@@ -16,6 +16,23 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Vertical slice lands + classical localization validated
+
+**Context:** First code in `src/`. Two parallel sub-agents: one built the end-to-end REST skeleton (stub localizer/identifier), one ran a classical-localization spike on the real sampled frames to test the project's central architectural bet.
+
+**What landed (skeleton):** `src/dbcv/` package — `schema.py` (Pydantic `GameStateSnapshot` v0.1.0, all coords relative, resolution read from media), `localize.py`/`identify.py` (pluggable interfaces + stubs), `pipeline.py`, `assemble.py`, `config.py`, `api.py` (FastAPI, `lifespan` "load once onto app.state" pattern, `POST /v1/snapshot` accepting an uploaded frame, **plain `def`** so CPU-bound inference runs in the threadpool per RESEARCH entry 5). `tests/` + repo-root `conftest.py` (puts `src/` on path). **11/11 pytest green.** CodeDocs synced: `sources/dbcv/*.md` overviews + `io/inputs.md`/`io/outputs.md` reconciled (schema bumped 0.0.0→0.1.0, `confidence` bounded [0,1], `role_class` a validated Literal).
+
+**What the spike found (the important part):** **Classical, layout-based localization is viable** — confidence ~0.80. On clean board frames it hit **8/8 and 9/9 cards exact, zero false positives**, using HSV colour segmentation of card regions → morphology → external contours filtered by area/aspect → relative HUD-exclusion zones → IoU-NMS. All thresholds expressed relative to `min(W,H)` (no baked resolution). This validates the decision to NOT train a detector.
+
+**What did NOT work / open risks:**
+- **Board-vs-modal state gate is weak** (0/3 on modal frames). The game's modals are *dark*-backgrounded with bright text/art, so a center-brightness threshold misreads them as "board." Needs a better signal (pentagram-absence or modal-header detection). This is Stage 0's real problem, now concrete.
+- **Numbered position badges are NOT usable as primary anchors via blob detection** — card clue/ability text panels produce indistinguishable bright blobs (badge blob detection over-fired 30–60/frame and was demoted). Badges may still work for *ordering* detected boxes via targeted `#`-glyph OCR. **Flag:** `knowledge-base/lessons/observed-board-layout.md` calls badges "ideal landmarks" — true for geometry, but the implementation note that *raw blob detection on them fails* should be added when we deepen Stage 1. (Not edited yet — flagged per Rule 3.)
+- HSV hue ranges are tuned to this art set; an art swap = re-tune ranges (cheap, no training) — consistent with the "cheap to re-fit" thesis, but worth teaching as the honest caveat of the classical path.
+
+**Choice:** Commit the skeleton as a rewindable checkpoint; next integrate the spike's `localize()` into `src/dbcv/localize.py` (replacing the stub) and make the API test deterministic on a known board frame.
+
+**Notes / risks:** Sampled frames are **1280×720** (the frame sampler downscaled the 1920×1080 source) — code reads resolution from the image, so this is transparent. Spike artifacts (script + overlays) live in gitignored `scrap_scripts/`; the real `localize()` is promoted into `src/`.
+
 ## 2026-06-22 — Repo-local venv + start of the pipeline build (overseer run)
 
 **Context:** Long unattended "overseer" session: spawn sub-agents to build the pipeline (Stages 0–5) toward the functional + teaching goals, committing as we go, no push. User set three guardrails up front: (1) **repo-local env**, and *teach* uv vs conda vs pip as a course module; (2) **confirm the approach works end-to-end first, then step back and deepen**; (3) at forks, **prefer the conservative/lighter/classical path** and log it.

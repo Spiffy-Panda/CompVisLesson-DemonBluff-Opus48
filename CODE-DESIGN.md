@@ -11,4 +11,17 @@ The map of `src/`. Read this and `CodeDocs/00_PROJECT.md` **before** opening any
 
 ## Status
 
-No `src/` code yet. This index and the `CodeDocs/io/` stubs describe the *intended* contracts so the first code has a target to hit. Keep them in sync the moment real files land (Rule 3): every new source file gets a `CodeDocs/sources/...` overview, and any change to a consumed/produced format updates `io/inputs.md` or `io/outputs.md`.
+**Vertical-slice skeleton landed 2026-06-22.** `src/dbcv/` now exists.
+
+Source overviews live under `CodeDocs/sources/dbcv/`:
+- [`schema.md`](sources/dbcv/schema.md) — Pydantic v2 models (`GameStateSnapshot`, etc.)
+- [`localize.md`](sources/dbcv/localize.md) — localizer interface + stub
+- [`identify.md`](sources/dbcv/identify.md) — identifier interface + stub
+- [`assemble.md`](sources/dbcv/assemble.md) — snapshot assembly (pure function)
+- [`pipeline.md`](sources/dbcv/pipeline.md) — end-to-end orchestration + `crop_relative`
+- [`api.md`](sources/dbcv/api.md) — FastAPI app, lifespan, `POST /v1/snapshot`
+- [`config.md`](sources/dbcv/config.md) — pydantic-settings `Settings`
+
+I/O contracts updated in `CodeDocs/io/`:
+- `inputs.md` — documents new API frame upload format
+- `outputs.md` — `GameStateSnapshot` schema frozen at version **0.1.0**
