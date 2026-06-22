@@ -11,23 +11,33 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 2. **Vertical slice**: a thin path through all stages — load an existing sampled frame → **classical localization** (the single riskiest assumption) → placeholder identity → assemble `GameStateSnapshot` → `POST /v1/snapshot`. Proves the architecture + REST contract + schema on real frames, leaning classical/conservative (no heavy deps).
 3. **Step back**: assess what the slice reveals (esp. whether classical localization is viable on our footage), then deepen each stage with its research-backed method + full lesson module + `CodeDocs/` sync, committing per teachable unit.
 
+## Open decisions & next steps (handoff, 2026-06-22)
+
+**Where it stands:** Stages 0, 1, 2 + the REST service + a CLI runner are shipped (classical/CPU, plus a torch-trained-but-*frozen* embedding backbone served via ONNX-CPU). **81 tests pass (~22 s).** `torch 2.7.1+cu118` + `onnxruntime` installed; GPU verified on the Titan Xp. Authoritative history is in `DEV-LOG.md` (newest first); decisions in `PROJECT-PITCH.md`; lesson plan is **8/10 modules** authored.
+
+**Two decisions await the user (do NOT resolve autonomously):**
+1. **Default identifier.** Embedding-NN is *currently wired as the default*, but the frozen-ImageNet backbone is **not more accurate** than the classical matcher (it over-identifies — see Stage 2). Recommendation: flip the default to the conservative **classical** identifier until the backbone is fine-tuned. Both live on `app.state` (`identifier`, `classical_identifier`) — a one-line change. It's a product call.
+2. **Fine-tuning round.** The real fix for the collapsed embedding space: a light metric-learning fine-tune on (synthetically-augmented, possibly real-mined) card crops → re-export to ONNX → re-run the head-to-head. Feasible locally on the Titan Xp. Awaiting a go + approach (head-only vs full backbone; synthetic-only vs also mining real board crops).
+
+**Independent work ready to pick up (no decision needed):** Stage 0 stride-decode + perceptual-hash dedup; Stage 3 on-card OCR (closed-vocab recognizer); Stage 4 temporal smoothing; lesson Modules 05 (update once fine-tuned), 06 (OCR), 07 (assembly).
+
 ## Stage 0 — Frame selection (no runtime model)
 - [ ] Promote `03_sample_frames.py` patterns into a real selector in `src/`: low fixed-stride decode (fps from media) → perceptual-hash dedup → board/menu/modal gate. *(partial 2026-06-22: the gate is done in `src/dbcv/frame_state.py`; stride-decode + pHash dedup still owed)*
 - [x] Board-gate detecting occluding modals + menus *(2026-06-22 — `src/dbcv/frame_state.py`, **center-vs-ring brightness ratio**; more robust than matchTemplate against the dark-starfield modal background. Streamer overlays tolerated by the localizer's relative HUD-exclusion zones.)*
 - [ ] Dev-only: PySceneDetect segmentation of the long samples for dataset building.
 
-## Stage 1 — Localization (classical, layout-based)
-> **Spike validated 2026-06-22 (confidence ~0.80):** classical localization works — 8/8 & 9/9 exact on clean board frames via HSV colour-segmentation → morphology → contour filter (area/aspect) → relative HUD-exclusion → IoU-NMS. **Badge blob-detection failed** (clue-text panels alias as badges) — badges are for *ordering*, not primary anchoring. Integration of the spike `localize()` into `src/` is the next step; deepening (skew-robustness, art-swap hue re-tuning, ring-geometry sanity check) follows.
-- [ ] Detect art-independent landmarks: the radial card ring, numbered position badges, panel/UI chrome.
-- [ ] Derive card slots relative to landmarks, scaled by measured resolution; handle **variable card count**.
-- [ ] Output resolution-relative bboxes (`CodeDocs/io/outputs.md` schema).
+## Stage 1 — Localization (classical, layout-based) — **shipped**
+> **Validated + integrated 2026-06-22 (`src/dbcv/localize.py`, `classical_localize`):** 8/8 & 9/9 cards exact on clean board frames via HSV colour-segmentation → morphology → contour filter (area/aspect) → relative HUD-exclusion → IoU-NMS. **Badge blob-detection failed** (clue-text aliases as badges) — badges are for *ordering*, not anchoring. Optional deepening left: skew-robustness, ring-geometry sanity check, art-swap hue re-tuning.
+- [x] Detect art-independent landmarks (colour/contour over the card ring; badges demoted to ordering).
+- [x] Derive card slots relative to landmarks; handle **variable card count** (8/9/10 seen).
+- [x] Output resolution-relative bboxes (`bbox_rel`, `CodeDocs/io/outputs.md`).
 
-## Stage 2 — Identification (embedding-NN gallery + OCR cross-check)
-> **Classical baseline shipped 2026-06-22** (`src/dbcv/gallery.py` + `identify.py`): in-memory gallery (43 townees / 67 refs incl. skins), HSV-histogram match + ORB tiebreaker. Honest accuracy ~40–60% on face-up cards, correct "unknown" on face-down → motivates the embedding upgrade. Embedding-NN **deferred** (needs onnxruntime — first heavy dep; logged in DEV-LOG).
-- [x] Build the reference gallery from `knowledge-base/card-art/` *(in-memory; rebuild = the versioning story)*.
-- [ ] Small frozen embedding backbone → NN over gallery; prototypical averaging of references. *(deferred — needs onnxruntime + a model export; conservative path)*
-- [ ] Name-label OCR cross-check; reconcile visual + text identity with confidences. *(blocked on Stage 3)*
-- [x] Retrain story: art swap = re-fit gallery, **zero training** *(preserved — `build_gallery()` rebuilds in-memory; for embeddings this becomes re-embed)*.
+## Stage 2 — Identification (embedding-NN gallery + OCR cross-check) — **both identifiers shipped**
+> **2026-06-22.** (1) **Classical** (`gallery.py` + `identify.py`): in-memory gallery (43 townees / 67 refs incl. skins), HSV-histogram + ORB; ~40–60% on face-up cards, honest "unknown" on face-down. (2) **Embedding-NN** (`embed.py` + `identify.py`): frozen MobileNetV3-Small → **ONNX → onnxruntime-CPU** (torch↔onnx parity 1.7e-6; serving stays torch-free) → cosine-NN over a re-embeddable 576-d **prototypical** gallery, loaded once in `lifespan`. **Honest finding:** the *frozen ImageNet* backbone collapses the 43 cartoon characters into one cluster (inter-prototype cosine 0.65–0.94) → it names ~100% of slots but **is not more accurate than classical** (it over-identifies; classical's conservative unknowns give better precision). Architecture is correct (re-fit-cheap, ONNX-CPU); the fix is **light domain fine-tuning** — see *Open decisions* above.
+- [x] Build the reference gallery from `knowledge-base/card-art/` *(in-memory; rebuild = the versioning story; used by both identifiers)*.
+- [x] Small frozen embedding backbone → NN over gallery; prototypical mean per townee *(built — frozen ImageNet insufficient → fine-tune next)*.
+- [ ] Name-label OCR cross-check; reconcile visual + text identity with confidences *(blocked on Stage 3 OCR)*.
+- [x] Retrain story: art swap = **re-embed** references (`build_embedding_gallery`) / re-fit the classical gallery, **zero training**.
 
 ## Stage 3 — On-card / HUD reading (closed-vocab recognizer)
 - [ ] Tiny custom recognizer for role names + 1–2-digit counts (rendered-crop training set).
@@ -37,10 +47,10 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 ## Stage 4 — State assembly
 - [ ] Merge per-card reads into the `GameStateSnapshot`; temporal smoothing across frames (handle modal occlusion).
 
-## Stage 5 — REST service
-- [x] FastAPI: models loaded once in `lifespan` onto `app.state`; inference in plain `def`. *(slice, 2026-06-22 — `src/dbcv/api.py`; pattern in place, no models loaded yet)*
-- [x] Versioned Pydantic `GameStateSnapshot` (`schema_version`, `resolution` from media); `POST /v1/snapshot`. *(slice, 2026-06-22 — accepts an uploaded frame; resolution read from it)*
-- [ ] Serve small models via ONNX Runtime (CPU); no batching. *(deferred — no runtime models exist yet)*
+## Stage 5 — REST service — **shipped**
+- [x] FastAPI: models loaded once in `lifespan` onto `app.state`; inference in plain `def`. *(2026-06-22 — `src/dbcv/api.py`; the ONNX embedder + both identifiers + the gallery load once in lifespan)*
+- [x] Versioned Pydantic `GameStateSnapshot` (`schema_version` 0.2.0, `resolution` from media, `frame_state`); `POST /v1/snapshot`. *(2026-06-22 — accepts an uploaded frame; resolution read from it)*
+- [x] Serve small models via ONNX Runtime (CPU); no batching. *(2026-06-22 — MobileNetV3 embedding backbone served on CPU via `src/dbcv/embed.py`; ONNX is gitignored + regenerable via `utils/python/export_backbone.py`, documented in `models/README.md`)*
 
 ## Cross-cutting
 - [x] Repo-local `.venv` + pinned `requirements.txt` (2026-06-22). Standard interpreter for all scripts/agents: `.venv/Scripts/python.exe`.

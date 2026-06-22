@@ -16,6 +16,16 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Handoff consolidation: reconcile PLAN-pipeline + publish a status page
+
+**Context:** Context window filling up; wrapping the session for clean handoff to fresh chats. Goal: make sure the *written* record is the single source of truth (a fresh chat has only the docs + git log) and add a human-readable status page to the public site.
+
+**Found + fixed a drift:** `plans/PLAN-pipeline.md` had gone stale — it still showed Stage 1 integration as "next" and Stage 2 embedding-NN as "deferred," because the torch-adoption + embedding-NN rounds (which updated DEV-LOG + the decisions table) didn't fully re-sync the plan. Reconciled it to reality: Stages 0/1/2 + REST marked shipped with accurate notes; the honest embedding finding folded in; and a new **"Open decisions & next steps (handoff)"** section pinned near the top so a fresh chat sees the two pending calls immediately: (1) flip the default identifier to classical until fine-tuned, (2) the fine-tuning round + approach. (This is the Rule 3 "on noticed desync, full audit" in action.)
+
+**Public status page:** added `site/pages/status.html` — a plain-language snapshot (what works, the honest identification result, the course at 8/10 modules, what's next, and pointers to the cited repo docs). Linked from `site/index.html` (Pages) and `site/pages/notes.html` (the misc section). **Rule 6/7 gate run:** repo-wide grep for the dead name / real last name / private absolute paths → **no matches** in tracked content; the page is project-focused prose with repo-relative paths only, no identity or third-party bulk.
+
+**State at handoff:** 81 tests green (~22 s); 14 commits this session, all on local `main`, **nothing pushed** (per the standing instruction). Entry chain for the next chat: `CLAUDE.md` → `PLAN.md` → `plans/PLAN-pipeline.md` (open decisions at the top) → `DEV-LOG.md` → `PROJECT-PITCH.md` → `CODE-DESIGN.md`/`CodeDocs/`.
+
 ## 2026-06-22 — Test suite speed: ~295 s → 23.5 s via process-level memoization
 
 **Context:** After Stage 3 landed the 81-test suite had ballooned to ~295 s. The root cause (already diagnosed) was that the two expensive builders — `build_gallery()` (~10 s, loads 67 PNGs + computes HSV histograms + ORB descriptors) and `OnnxEmbedder` + `build_embedding_gallery()` (~2–3 s, loads ONNX session + embeds all 67 references) — were being re-run on every test module that owned a `scope="module"` fixture AND on every `TestClient(app)` that triggered the FastAPI `lifespan`. With five test modules each pulling the lifespan + fixtures, the total reached ~7+ full rebuilds.

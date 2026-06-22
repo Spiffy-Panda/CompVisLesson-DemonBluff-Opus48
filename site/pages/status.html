@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Project Status &amp; Handoff — CompVis Lesson</title>
+  <meta name="description" content="Build status and handoff summary for the Demon Bluff CV lesson project, as of 2026-06-22." />
+  <link rel="stylesheet" href="../assets/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <p class="crumb"><a href="../index.html">← CompVis Lesson — Demon Bluff</a></p>
+    <header class="site">
+      <p class="eyebrow">Build log · Snapshot 2026-06-22</p>
+      <h1>Project status &amp; handoff summary</h1>
+      <p class="tagline">Where the pipeline and the course stand right now, in plain terms — a
+        snapshot for picking the work back up. The cited, authoritative version lives in the repo
+        docs (linked at the bottom).</p>
+    </header>
+
+    <div class="panel scratch">
+      <p><strong>One line:</strong> the pipeline already reads a <em>Demon Bluff</em> board
+        end-to-end from a single frame — it finds the cards, decides whether the frame even shows a
+        board, takes a first pass at naming each card, and serves the result as JSON over HTTP.
+        Everything runs on CPU; the heavier tools are dev-only.</p>
+    </div>
+
+    <h2>What's working</h2>
+    <div class="panel">
+      <p><strong>End-to-end path (per frame):</strong> frame → <em>state gate</em>
+        (board / modal / menu) → <em>localization</em> (find the card slots) →
+        <em>identification</em> (name each card) → <em>assembly</em> → a versioned
+        <code>GameStateSnapshot</code> → <code>POST /v1/snapshot</code>. There's also a
+        command-line runner that does the same on saved frames and draws annotated overlays.</p>
+      <ul>
+        <li><strong>Frame-state gate.</strong> Tells a real board from a menu or a pop-up dialog by
+          comparing the brightness of the centre to the ring around it — the trick is that the game's
+          dialogs sit on the <em>same dark background</em> as the board, so plain brightness fails but
+          the <em>ratio</em> separates them cleanly.</li>
+        <li><strong>Localization (classical, no trained detector).</strong> Finds the cards by colour
+          + shape geometry rather than a learned model — <strong>8 / 8 and 9 / 9 cards exact</strong>
+          on clean board frames, and it survives an art swap by re-tuning, not retraining.</li>
+        <li><strong>Identification (two approaches, honest results — see below).</strong></li>
+        <li><strong>REST service.</strong> FastAPI; models load once at startup; CPU-bound work runs
+          off the event loop; the JSON snapshot is versioned and always reports the resolution it
+          actually measured (never a hard-coded size).</li>
+        <li><strong>Tests:</strong> 81 passing in about 22 seconds.</li>
+      </ul>
+    </div>
+
+    <h2>The honest finding (identification)</h2>
+    <div class="panel scratch">
+      <p>This is the kind of real result the course exists to show. Two identifiers were built:</p>
+      <ul>
+        <li><strong>Classical</strong> (colour-histogram + feature match against a reference gallery):
+          roughly <strong>40–60% correct on face-up cards</strong>, and correctly says
+          <em>"unknown"</em> on face-down cards (a blank card back matches nothing — the right
+          answer).</li>
+        <li><strong>Embedding nearest-neighbour</strong> (a small image model → vector → nearest
+          gallery vector): the architecture is the production-intended one and re-fits on an art swap
+          with zero training. <strong>But</strong> the off-the-shelf (frozen, photo-trained) model
+          squashes all the cartoon characters into one tight cluster, so it confidently names nearly
+          every slot — <em>without being more accurate</em> than the conservative classical method.</li>
+      </ul>
+      <p>The takeaway, which becomes a lesson: an embedding model doesn't magically win — you have to
+        adapt it to your domain. The next step is a light fine-tune of that model on card crops, which
+        the dev machine can now do locally. Until then the conservative classical identifier is the
+        safer default for an API (an honest "unknown" beats a confident wrong answer).</p>
+    </div>
+
+    <h2>The course (the real deliverable)</h2>
+    <div class="panel">
+      <p>The lesson plan is the primary product; the pipeline is its worked example. <strong>8 of 10
+        modules are drafted</strong>, each anchored to a real decision made while building:
+        environments, framing, frame selection, resolution-agnostic geometry, localization,
+        identification, REST serving, and staying-alive (keeping a recognizer working when the art
+        changes). The two not yet written — on-card text reading and multi-frame state assembly —
+        wait on the pipeline stages they describe.</p>
+    </div>
+
+    <h2>How it's built</h2>
+    <div class="panel">
+      <ul>
+        <li><strong>Environment:</strong> a project-local virtual environment with pinned
+          dependencies (the course also teaches the trade-offs between venv/pip, conda, and uv).</li>
+        <li><strong>Classical CV:</strong> OpenCV (headless) + NumPy — the localization and the first
+          identifier.</li>
+        <li><strong>Serving:</strong> FastAPI + ONNX Runtime on CPU; small models only, no batching.</li>
+        <li><strong>Dev-time ML:</strong> PyTorch (GPU) is used only to prepare/export models, which
+          are then served on CPU. Runtime models stay small enough for a mid-grade gaming PC.</li>
+      </ul>
+    </div>
+
+    <h2>What's next</h2>
+    <div class="panel scratch">
+      <ul>
+        <li>Fine-tune the embedding model on card crops, re-export, and re-measure against the
+          classical baseline.</li>
+        <li>On-card / HUD text reading (a tiny recognizer for the small, fixed set of words and
+          numbers).</li>
+        <li>Combine reads across several frames into one stable snapshot (single frames can be
+          occluded by dialogs).</li>
+        <li>Finish frame selection (skip-ahead decoding + dropping near-duplicate frames) and the
+          remaining two lesson modules.</li>
+      </ul>
+    </div>
+
+    <h2>Where the cited, detailed version lives</h2>
+    <div class="panel">
+      <p>These pages are working notes. The authoritative, cited record is in the repository:</p>
+      <ul>
+        <li><code>plans/PLAN-pipeline.md</code> — the stage-by-stage plan and open decisions.</li>
+        <li><code>PROJECT-PITCH.md</code> — the design narrative and the running decisions table.</li>
+        <li><code>DEV-LOG.md</code> — why each choice was made (newest first).</li>
+        <li><code>Lesson-Plan/LESSON-PLAN.md</code> — the course spec and module index.</li>
+        <li><code>research/RESEARCH.md</code> — the professional/academic basis for each technique.</li>
+      </ul>
+    </div>
+
+    <footer class="site">
+      <p><span class="status-dot">●</span> Snapshot as of 2026-06-22. LLM-authored teaching artifact;
+        status changes as the work continues.</p>
+    </footer>
+  </div>
+</body>
+</html>
