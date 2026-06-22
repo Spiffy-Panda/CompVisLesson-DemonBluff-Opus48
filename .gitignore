@@ -38,6 +38,9 @@ knowledge-base/wiki/_raw_cache/
 *.weights
 checkpoints/
 runs/
+# regenerable training/eval dumps under models/ (authoritative numbers -> DEV-LOG.md)
+models/*.log
+models/*.txt
 
 # --- python ----------------------------------------------------------------
 __pycache__/

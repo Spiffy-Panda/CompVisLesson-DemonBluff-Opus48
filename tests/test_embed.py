@@ -59,7 +59,8 @@ def embedder() -> OnnxEmbedder:
     if not _ONNX_PATH.exists():
         pytest.skip(
             f"ONNX model not found: {_ONNX_PATH}\n"
-            "Run: .venv\\Scripts\\python.exe utils\\python\\export_backbone.py"
+            "The served model is the fine-tuned backbone. Regenerate with:\n"
+            "Run: .venv\\Scripts\\python.exe utils\\python\\finetune_embedding.py"
         )
     return get_onnx_embedder(_ONNX_PATH)
 

@@ -4,9 +4,12 @@ dbcv/embed.py — ONNX-based image embedder for card identification.
 RUNTIME-ONLY module: no torch, no torchvision, no CUDA.
 Depends only on onnxruntime, numpy, and opencv (cv2).
 
-This module implements the Stage 3 embedding backbone at INFERENCE TIME.
-The ONNX model was exported by utils/python/export_backbone.py (dev-only,
-requires torch).  At runtime, onnxruntime runs the same computation on CPU.
+This module implements the Stage 2 embedding backbone at INFERENCE TIME.
+The served ONNX model is the domain-fine-tuned backbone produced by
+utils/python/finetune_embedding.py (dev-only, requires torch + a GPU is
+strongly preferred).  utils/python/export_backbone.py produces the *frozen*
+ImageNet baseline (models/..._frozen.onnx) used only for the head-to-head.
+At runtime, onnxruntime runs the same computation on CPU.
 
 Architecture
 ------------
@@ -150,8 +153,9 @@ class OnnxEmbedder:
         if not onnx_path.exists():
             raise FileNotFoundError(
                 f"ONNX model not found: {onnx_path}\n"
-                "Run the export tool to generate it:\n"
-                "    .venv\\Scripts\\python.exe utils\\python\\export_backbone.py"
+                "The served model is the domain-fine-tuned backbone. Regenerate with:\n"
+                "    .venv\\Scripts\\python.exe utils\\python\\finetune_embedding.py\n"
+                "(utils/python/export_backbone.py produces the frozen baseline only.)"
             )
 
         # Store the resolved path so gallery.py can use it as a cache key.

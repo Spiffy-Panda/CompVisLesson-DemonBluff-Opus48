@@ -16,6 +16,28 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Embedding fine-tune (round 1): fixed the collapse; adopted as default with a margin gate
+
+**Context:** The shipped embedder was a *frozen* ImageNet MobileNetV3-Small. On our 43 stylised card-characters its features collapsed (inter-prototype cosine 0.65–0.94), so embedding-NN over-identified and did not beat the conservative classical matcher. The prior handoff left two open decisions: do a fine-tuning round, and whether to flip the default identifier. This session resolved both.
+
+**Research first (research-before-deciding):** New `research/RESEARCH.md` entry. The failure is a *known* phenomenon — **domain shift of frozen ImageNet features to a stylised / fine-grained domain** (Chen et al. ICLR'19; explicitly NOT "neural collapse"). Prescription: fine-tune the *same* backbone with a metric-learning **margin** loss (**Proxy-Anchor**), **LP-FT** (warm the head, then unfreeze top blocks — full FT distorts features on <1e3 images, Kumar et al. ICLR'22), strong augmentation from the clean refs, and a **margin** abstention criterion.
+
+**What we built:** `utils/python/finetune_embedding.py` (promoted from scrap — it now generates the served artifact). Proxy-Anchor implemented inline (no new dep, teachable). LP-FT: Phase A 250 steps proxy warmup (backbone frozen, BN in eval), Phase B 600 steps with the top 4 feature blocks unfrozen (~736k params), AdamW, proxies warm-started from the frozen prototypes. Synthetic augmentation via `torchvision.transforms.v2` (RandomResizedCrop + perspective + ≤6° rotation + RandAugment + GaussianBlur + RandomErasing; **no horizontal flip** — in-game cards are never mirrored, so flipping would teach a false invariance). Batch = 43 classes × 4 views, on the Titan Xp (~minutes).
+
+**Round-1 result (leak-proof metric = inter-prototype cosine on CLEAN refs):** mean off-diagonal **0.850 → 0.409** (max 0.939 → 0.536); synthetic top-1 79.9% → 100% with top1−top2 margin 0.031 → 0.405; torch↔ONNX parity 5.5e-6. The collapse is undone. On real frames the confident (high-margin) calls match documented content (Scout, Wretch on frame 008).
+
+**Decision #1 (user call) — adopt the fine-tuned embedding-NN + a margin gate as default.** Fine-tuning compressed the absolute cosine scale (correct match ~0.6, unrelated ~0.4), so the old absolute threshold (0.60) over-identified 125/125. Switched `classify_crop_embedding` to abstain on the **top1−top2 margin** (`_EMBED_MARGIN_THRESHOLD = 0.12`); the reported `confidence` is now that margin (semantic change). Real-frame result: 30/125 (24%) confident IDs, 95 honest "unknown", classical↔embedding agreement 27 → 90. Conservative + high-precision, matching the project's values.
+
+**Served-model layout (all gitignored, regenerable):** `models/mobilenetv3_small_embed.onnx` is now the **fine-tuned** served model (generator `finetune_embedding.py`; weights `mobilenetv3_small_embed.pt`). The frozen ImageNet **baseline** moved to `models/mobilenetv3_small_embed_frozen.onnx` (generator `export_backbone.py`, repointed). The runtime path is unchanged → `embed.py`/`api.py`/tests needed no path change. 81 tests green (~24 s).
+
+**Decision #2 (user call) — stop at round 1.** The leak-proof metrics show the collapse is fixed; round 2's levers (SupCon / deeper unfreeze / class-balancing / real-mined crops) target "if round 1 underperforms," which it didn't. The one genuine open gap is real-frame generalisation *beyond the confident few*, which needs **labeled** board crops to even measure — the documented next lever (round 2 = mine + label real crops), tied to dataset-building, not a quick retrain.
+
+**Notes / risks the next person should know:**
+- **Art-swap cost changed.** Frozen backbone → art swap was *re-embed only, zero training*. The served backbone is now fine-tuned to the current 43 characters, so a *new* art set is best handled by **re-fine-tuning** (`finetune_embedding.py`, ~minutes on Titan Xp) then the gallery rebuild; a quick re-embed still works but won't separate new art as well. This is the accuracy ↔ retrain-cost tradeoff (a teachable point for Module 05).
+- **Margin threshold 0.12 is provisional**, calibrated on round-1 real-frame margins (`scrap_scripts/python/11_ft_abstain_probe.py`): confident cards ≥ ~0.11, ambiguous < ~0.06. Refine once labeled / face-down crops exist. Frames 1–18 are all face-up (verified visually on frame 008), so face-down rejection is unmeasured on real data; the classical hist-gate stays available as a face-down signal if false positives appear.
+- **`confidence` semantics changed** for the embedding identifier (now the top1−top2 margin, not the (cos+1)/2 remap). Stage 4 temporal smoothing should weight accordingly when built.
+- Fixed a naming desync: `embed.py`/`identify.py` called identification "Stage 3"; it is **Stage 2** (Stage 3 = OCR) per PLAN-pipeline.
+
 ## 2026-06-22 — Handoff consolidation: reconcile PLAN-pipeline + publish a status page
 
 **Context:** Context window filling up; wrapping the session for clean handoff to fresh chats. Goal: make sure the *written* record is the single source of truth (a fresh chat has only the docs + git log) and add a human-readable status page to the public site.

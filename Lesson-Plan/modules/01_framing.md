@@ -7,7 +7,7 @@
 1. Describe what "reading game state from video frames" means concretely for *Demon Bluff* — what the input is, what structured output is expected, and why the problem is not trivial.
 2. Sketch the pipeline's seven-stage arc (frame selection → state gate → localization → identification → on-card reading → assembly → REST serving) and explain why each stage exists.
 3. Name the six constraints that shape every technique choice in this course and explain how each one closes off options that would otherwise be available.
-4. Identify which pipeline stages are classical (no learned model at runtime) and which are deferred to a learned model — and understand why those are deliberate choices, not oversights.
+4. Identify which pipeline stages are classical (no learned model at runtime) and which use a learned model — and understand why those are deliberate choices, not oversights. (Identification now ships an *adopted* learned model — a fine-tuned embedding-NN — after a frozen backbone proved insufficient; see Module 05.)
 
 ---
 
@@ -52,7 +52,7 @@ The course teaches CV by building these stages in order. Here is the arc:
 
 **Stage 3 — Card localization.** Given a board frame, find the bounding box of each card. The pipeline uses a classical, layout-based approach: HSV colour segmentation → morphological cleanup → contour filtering → HUD-zone exclusion → IoU NMS. This is `src/dbcv/localize.py`. Module 04 teaches this stage and explains the choice over a trained detector.
 
-**Stage 4 — Card identification.** Given a cropped card image, name the townee. The shipped classical baseline uses a 2-D HSV colour histogram matched against an in-memory reference gallery (`src/dbcv/gallery.py`, `src/dbcv/identify.py`). The deferred upgrade uses a small frozen embedding backbone with nearest-neighbour retrieval. Module 05 teaches both.
+**Stage 4 — Card identification.** Given a cropped card image, name the townee. A classical baseline uses a 2-D HSV colour histogram matched against an in-memory reference gallery (`src/dbcv/gallery.py`, `src/dbcv/identify.py`); it is retained as a fallback. The **adopted default** is a small embedding backbone with nearest-neighbour retrieval — but **domain-fine-tuned**, because a *frozen* ImageNet backbone collapsed the stylised characters and over-identified. Module 05 teaches the whole arc (classical → frozen-fails → fine-tune-fixes → adopted).
 
 **Stage 5 — On-card reading.** Given a card crop, read the role-name text and ability counts. A closed-vocabulary recognizer (tiny CNN/CRNN over the known glyph set) or a lightweight OCR fallback reads these fields. Module 06 teaches this stage.
 
@@ -122,7 +122,7 @@ By the end of this course, a learner will be able to:
 - Know what "cheap to re-fit" means structurally, and which design decisions guarantee it.
 - Have an honest account of where the pipeline's current accuracy falls short, and what the planned upgrade path is.
 
-Some stages in the course ship a classical baseline and explicitly defer a heavier model. This is not an apology. The classical baseline is measurable, explainable, and already satisfies the art-swap constraint. The deferred embedding-NN upgrade for identification is held back not because it is wrong but because it adds a new dependency (`onnxruntime`, a model export step, a backbone selection decision) and the gap between baseline and upgrade is more instructive to measure than to paper over.
+Some stages in the course ship a classical baseline first and only then reach for a heavier model. This is not an apology — it is the method. For identification this arc actually played out and is now complete: the classical baseline was measured (an honest lower bound that satisfies the art-swap constraint), then an embedding-NN was built; the *frozen* version under-performed the baseline, was correctly diagnosed (domain shift), **fine-tuned**, and **adopted** as the default (Module 05). Measuring the gap between baseline and model — including the embarrassing interval where the deep model *lost* — was more instructive than papering over it. Stages that remain genuinely deferred (on-card OCR, multi-frame temporal assembly) wait on the pipeline work they describe.
 
 ---
 

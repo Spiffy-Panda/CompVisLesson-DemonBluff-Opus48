@@ -1,8 +1,9 @@
 # CodeDocs/sources/dbcv/gallery.py
 
-**Status:** active — Stage 2 classical gallery + **Stage 3 embedding gallery** (updated 2026-06-22).
+**Status:** active — Stage 2 identification: classical gallery + **embedding gallery** (updated 2026-06-22).
 Loads ~67 PNGs, precomputes HSV histograms + ORB descriptors + thumbnails (classical),
-and now also builds per-identity prototype embeddings (embedding-NN).
+and now also builds per-identity prototype embeddings (embedding-NN, using the fine-tuned
+served backbone). (Both are Stage 2 — identification; Stage 3 is OCR, not built yet.)
 Both builders are **memoized** at the process level (module-level dict caches) — see
 `_GALLERY_CACHE` and `_EMBED_GALLERY_CACHE` below.
 
@@ -112,7 +113,7 @@ reference image height (the art region), returns BGR array or None on failure.
 
 ---
 
-## Stage 3 additions — Embedding gallery
+## Embedding gallery (Stage 2 — embedding identifier)
 
 ### `EmbeddingGalleryEntry` — `NamedTuple` (line ~370)
 ```python

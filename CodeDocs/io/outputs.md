@@ -36,16 +36,30 @@ Implemented in `src/dbcv/schema.py`.
       "role_class": "villager",                 // "villager"|"minion"|"outcast"|"demon"|"unknown"
       "identity": "Alchemist",                  // townee name or "unknown"
       "readings": {
-        "text": null,                            // str | null — on-card text (OCR, Stage 3)
+        "text": null,                            // str | null — on-card text (OCR, Stage 3 — not built yet)
         "number": null,                          // int | null — numeric reading
         "state": null                            // str | null — discrete state marker
       },
-      "confidence": 0.91                        // float in [0.0, 1.0]
+      "confidence": 0.91                        // float in [0.0, 1.0] — see note below
     }
   ],
   "schema_version": "0.2.0"  // bump on any breaking change
 }
 ```
+
+**`confidence` semantics depend on the identifier (no schema change):**
+
+- **Embedding identifier (the default, Stage 2).** `confidence` is the **top1−top2 cosine
+  margin** — how decisively the nearest prototype beat the runner-up — clamped into [0, 1].
+  After the 2026-06-22 fine-tune this replaced the old `(cos+1)/2` absolute-cosine remap,
+  because fine-tuning compressed the absolute cosine scale and only the margin still
+  discriminates. The abstention gate is `_EMBED_MARGIN_THRESHOLD = 0.12` (provisional). See
+  `CodeDocs/sources/dbcv/identify.md`.
+- **Classical identifier (fallback).** `confidence` is the HSV-histogram Pearson correlation of
+  the best match, clamped to [0, 1] (gate `_CONFIDENCE_THRESHOLD = 0.40`).
+
+Both are floats in [0.0, 1.0] and validated by the schema; the wire shape is unchanged. The
+number is **not** comparable across the two identifiers (different quantities).
 
 **Invariant introduced in 0.2.0:** when `frame_state` is `"modal"` or
 `"menu"`, `cards` is always `[]`.  The localizer is intentionally skipped

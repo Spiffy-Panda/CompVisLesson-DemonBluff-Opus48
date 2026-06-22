@@ -1,14 +1,15 @@
 # CodeDocs/sources/dbcv/identify.py
 
-**Status:** Stage 2 (classical) + Stage 3 (embedding-NN) — updated 2026-06-22.
+**Status:** Stage 2 identification — classical baseline + embedding-NN — updated 2026-06-22.
 Both classifiers live here. Classical is retained as a selectable baseline.
-Embedding-NN (`classify_crop_embedding`) is the new default identifier wired
-into the API lifespan via `make_embedding_identifier`.
+Embedding-NN (`classify_crop_embedding`) is the **adopted default** identifier wired
+into the API lifespan via `make_embedding_identifier`. (Stage 3 = OCR, not built yet.)
 
 **Purpose:** Given a localized card crop, identifies the townee, role class,
 and confidence. Two implementations:
 - Classical: 2-D HSV histogram correlation + ORB tiebreaker.
-- Embedding-NN: ONNX cosine nearest-neighbor over prototype embeddings (Stage 3).
+- Embedding-NN: ONNX cosine nearest-neighbor over prototype embeddings, using the
+  **domain-fine-tuned** backbone (Proxy-Anchor LP-FT, 2026-06-22).
 
 **Who uses it:**
 - `dbcv/pipeline.py` — imports `identify` as the legacy default `identifier` argument
@@ -109,16 +110,17 @@ Scout, etc.) but fails for many face-up cards because:
    actual art region varies by card layout.
 
 **Verdict:** Classical is a useful *lower bound* and correctly handles face-down
-cards. The embedding-NN upgrade (Stage 3) is warranted: it would learn to be
-invariant to the crop-vs-reference gap from training examples.
+cards. The embedding-NN upgrade (still Stage 2 — identification) is warranted: it learns to be
+invariant to the crop-vs-reference gap from training examples. A frozen ImageNet backbone alone
+was *not* enough (it over-identified); the adopted fix was to domain-fine-tune it (see below).
 
 ---
 
 ---
 
-## Stage 3 additions — Embedding-NN identifier
+## Embedding-NN identifier (Stage 2, adopted default)
 
-### `classify_crop_embedding(card_crop, embedder, embed_gallery) -> (identity, role_class, confidence)` (line ~400)
+### `classify_crop_embedding(card_crop, embedder, embed_gallery) -> (identity, role_class, confidence)` (line ~407)
 ```python
 def classify_crop_embedding(
     card_crop: np.ndarray,
@@ -126,37 +128,45 @@ def classify_crop_embedding(
     embed_gallery: EmbeddingGallery,
 ) -> tuple[str, str, float]:
 ```
-Cosine nearest-neighbor over the embedding gallery.
+Cosine nearest-neighbor over the embedding gallery, using the **fine-tuned** backbone.
 
 **Algorithm:**
 1. `embedder.embed(card_crop)` → [576] unit-norm vector.
 2. `embed_gallery.embeddings @ crop_vec` → [K] cosine similarity scores.
-3. Pick `argmax` → nearest prototype.
-4. Map cosine [-1,1] → confidence [0,1]: `(cosine + 1) / 2`.
-5. Return "unknown" if confidence < `_EMBED_CONFIDENCE_THRESHOLD` (0.60).
+3. Take the two nearest prototypes (top-1 and top-2).
+4. `confidence` = the **top1−top2 cosine margin**, clipped to [0, 1].
+5. Return "unknown" if that margin is below `_EMBED_MARGIN_THRESHOLD` (0.12).
 
-**Threshold calibration:** Blank/face-down crops embed to cosine ≈ -0.23
-(confidence ≈ 0.38). Face-up board crops score 0.70-0.91 confidence.
-Threshold of 0.60 sits cleanly in the gap, rejecting degenerate inputs
-without suppressing real character crops.
+**Why a margin, not an absolute cosine (changed 2026-06-22).** The served backbone is
+domain-fine-tuned (Proxy-Anchor LP-FT), which **compressed the absolute cosine scale** — a
+correct match now sits ~0.6 and an unrelated prototype ~0.4 — so the old absolute cutoff
+(`_EMBED_CONFIDENCE_THRESHOLD = 0.60`) no longer separates matches from non-matches and
+over-identified **125/125** real cards. The top1−top2 margin does separate them: a decisive
+match pulls clearly ahead of the runner-up, while a face-down / ambiguous crop sits roughly
+equidistant from several prototypes (small margin) → "unknown". The returned `confidence`
+field **is** that margin now (decisiveness), not the old `(cos+1)/2` remap. See
+`research/RESEARCH.md` (2026-06-22 entry).
 
-**Known limitation:** MobileNetV3-Small (ImageNet-pretrained, frozen)
-maps all cartoon game characters to a tight cluster in embedding space
-(inter-prototype cosines 0.65-0.94). The nearest-neighbor result is
-determined by small within-cluster differences; some characters with
-similar colour/texture statistics are confused. The model is a useful
-first baseline and correctly separates face-down from face-up; further
-improvement would require fine-tuning on labelled board crops.
+**Margin calibration (provisional):** confident real-frame cards score margin ≥ ~0.11;
+ambiguous / face-down crops < ~0.06. `_EMBED_MARGIN_THRESHOLD = 0.12` was calibrated on
+round-1 real-frame margins (`scrap_scripts/python/11_ft_abstain_probe.py`); refine once
+labelled board crops and face-down samples exist.
 
-### `make_embedding_identifier(embedder, embed_gallery) -> Callable` (line ~480)
+**Adopted real-frame behaviour:** the fine-tuned embedding identifier confidently identifies
+**30/125 (24%)** cards and abstains on 95; the classical baseline identifies 44/125 (35%);
+classical↔embedding agreement rose 27 → 90 after the fine-tune. The synthetic retrieval eval
+is optimistic (augmented reference art, not real crops); real-frame generalisation beyond the
+confident few is the open round-2 lever.
+
+### `make_embedding_identifier(embedder, embed_gallery) -> Callable` (line ~490)
 Bridges `classify_crop_embedding` into the 1-arg pipeline interface.
 Used by the API lifespan to make the default identifier.
 
-### Constants (Stage 3)
+### Constants (embedding identifier)
 
 | Constant | Value | Purpose |
 |----------|-------|---------|
-| `_EMBED_CONFIDENCE_THRESHOLD` | 0.60 | Minimum cosine→conf to report a match |
+| `_EMBED_MARGIN_THRESHOLD` | 0.12 | Minimum top1−top2 cosine margin to report a match (provisional); below this → "unknown" |
 
 ---
 
@@ -165,8 +175,9 @@ Used by the API lifespan to make the default identifier.
 `pipeline.py` `run_pipeline` still has `identifier=identify` (stub) as its default,
 so bare calls (without gallery) behave as before.
 
-`api.py` lifespan (Stage 3) now calls `make_embedding_identifier(embedder, embed_gallery)`
-and stores it on `app.state.identifier` as the **default identifier**.
+`api.py` lifespan now calls `make_embedding_identifier(embedder, embed_gallery)`
+and stores it on `app.state.identifier` as the **default identifier** (the adopted
+fine-tuned embedding-NN).
 The classical identifier is stored on `app.state.classical_identifier` as a fallback/baseline.
 
 If the ONNX file is absent at startup, the lifespan warns and falls back to the

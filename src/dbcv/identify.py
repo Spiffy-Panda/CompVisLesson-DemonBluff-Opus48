@@ -47,12 +47,13 @@ Why is this a CLASSICAL baseline, not the final approach?
   illustrations.  Board crops are partial, bordered, tinted, and sometimes
   occluded.  Classical similarity metrics can only approximate the art sub-region
   heuristically (we crop the upper-central portion of the board crop).  An
-  embedding NN (e.g. MobileNetV3-Small with cosine nearest-neighbour lookup)
-  would learn to be invariant to the crop-vs-reference gap by training on
-  examples of both.  That is the DEFERRED Stage 3 approach.
+  embedding NN (MobileNetV3-Small with cosine nearest-neighbour lookup) learns to
+  be invariant to the crop-vs-reference gap.  That is now the SERVED default
+  (domain-fine-tuned, 2026-06-22; see classify_crop_embedding below); this
+  classical matcher is kept as the honest baseline + fallback.
 
-  This stage measures *how far* classical gets — honestly — so the lesson plan
-  can quantify the gap and motivate the upgrade.
+  This baseline measures *how far* classical gets — honestly — so the lesson plan
+  can quantify the gap and motivate the (now-shipped) embedding upgrade.
 
 Confidence definition
 ---------------------
@@ -389,15 +390,20 @@ def identify(card_crop: np.ndarray) -> tuple[str, str, float]:
 
 
 # ---------------------------------------------------------------------------
-# Stage 3 — Embedding-NN identifier
+# Stage 2 — Embedding-NN identifier
 # ---------------------------------------------------------------------------
 
-# Cosine similarity threshold below which we return "unknown".
-# Face-down cards embed to a vector that cosines poorly against any character art;
-# they typically score below 0.30.  Cards with heavy borders/tinting that embed
-# ambiguously will also score low.
-# Calibrated empirically by running the eval (scrap_scripts/python/09_embed_eval.py).
-_EMBED_CONFIDENCE_THRESHOLD: float = 0.60
+# Abstention is decided by the top1-top2 cosine MARGIN, not an absolute cosine.
+# The served backbone is domain-fine-tuned (Proxy-Anchor LP-FT, 2026-06-22), which
+# compressed the absolute cosine scale (a correct match now sits ~0.6, an unrelated
+# prototype ~0.4), so the old absolute threshold no longer separates matches from
+# non-matches.  The *margin* to the runner-up is the honest signal: confident
+# real-frame cards score margin >= ~0.11, ambiguous/face-down ones < ~0.06.
+# Provisional value, calibrated on round-1 real-frame margins
+# (scrap_scripts/python/11_ft_abstain_probe.py); refine once labeled board crops
+# and face-down samples exist.  research/RESEARCH.md (2026-06-22) prescribes a
+# margin criterion for exactly this reason.
+_EMBED_MARGIN_THRESHOLD: float = 0.12
 
 
 def classify_crop_embedding(
@@ -410,9 +416,9 @@ def classify_crop_embedding(
     The approach:
       1. Embed the crop via the OnnxEmbedder (one ONNX forward pass).
       2. Compute cosine similarities against all gallery prototypes (one matmul).
-      3. Pick the nearest neighbour (highest cosine similarity).
-      4. Map cosine similarity in [-1, 1] to confidence in [0, 1].
-      5. Return "unknown" if confidence is below the threshold.
+      3. Take the two nearest prototypes (top-1 and top-2).
+      4. confidence = the top1-top2 cosine MARGIN (clipped to [0, 1]).
+      5. Return "unknown" if that margin is below _EMBED_MARGIN_THRESHOLD.
 
     Why cosine instead of Euclidean?
     ---------------------------------
@@ -420,13 +426,14 @@ def classify_crop_embedding(
     cosine similarity = dot product -- cheap (O(K * D) single matmul) and
     invariant to embedding vector scale, which varies with input brightness.
 
-    Face-down cards
-    ---------------
-    Face-down cards show a uniform card-back pattern with no character art.
-    Their embedding lands in a region of embedding space that is far from all
-    character art prototypes (different colour/texture/shape statistics).
-    They reliably score below the _EMBED_CONFIDENCE_THRESHOLD and return
-    ("unknown", "unknown", low_confidence).
+    Why a margin instead of an absolute cosine?
+    -------------------------------------------
+    The served backbone is domain-fine-tuned, which compressed the absolute
+    cosine scale (a correct match sits ~0.6, an unrelated prototype ~0.4), so a
+    fixed cosine cutoff no longer separates matches from non-matches.  The
+    top1-top2 margin does: a decisive match pulls clearly ahead of the runner-up,
+    while a face-down / ambiguous crop sits roughly equidistant from several
+    prototypes (small margin) -> "unknown".  See research/RESEARCH.md (2026-06-22).
 
     Parameters
     ----------
@@ -460,19 +467,20 @@ def classify_crop_embedding(
     # dot product of unit vecs = cosine similarity in [-1, 1]
     cosine_scores: np.ndarray = embed_gallery.embeddings @ crop_vec  # [K]
 
-    best_idx = int(np.argmax(cosine_scores))
-    best_cosine = float(cosine_scores[best_idx])
+    # Abstain on the top1-top2 MARGIN rather than an absolute cosine (see the
+    # _EMBED_MARGIN_THRESHOLD note above).  The reported confidence IS the margin
+    # (clipped to [0, 1]) -- the honest "how decisively did this beat the
+    # runner-up" signal -- so downstream can rank by decisiveness.
+    order = np.argsort(cosine_scores)  # ascending
+    best_idx = int(order[-1])
+    margin = (
+        float(cosine_scores[best_idx] - cosine_scores[int(order[-2])])
+        if cosine_scores.shape[0] >= 2
+        else 0.0
+    )
+    confidence = float(np.clip(margin, 0.0, 1.0))
 
-    # Map cosine similarity from [-1, 1] to confidence in [0, 1]:
-    #   confidence = (cosine + 1) / 2  (linear rescaling)
-    # A completely random embedding has expected cosine ~0 -> confidence ~0.5.
-    # A perfect match (same vector) has cosine 1.0 -> confidence 1.0.
-    # An anti-correlated vector has cosine -1.0 -> confidence 0.0.
-    # The threshold 0.60 maps to cosine 0.20 (weak positive alignment) --
-    # conservative enough to catch face-down cards without losing real matches.
-    confidence = float(np.clip((best_cosine + 1.0) / 2.0, 0.0, 1.0))
-
-    if confidence < _EMBED_CONFIDENCE_THRESHOLD:
+    if margin < _EMBED_MARGIN_THRESHOLD:
         return ("unknown", "unknown", round(confidence, 4))
 
     winner = embed_gallery.entries[best_idx]

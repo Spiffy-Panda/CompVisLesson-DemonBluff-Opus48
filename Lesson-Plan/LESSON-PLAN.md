@@ -59,10 +59,10 @@ A draft spine, not a commitment — modules earn their place from real pipeline 
 | 02 | `frame-selection` | Authored — `modules/02_frame-selection.md` | "Frame selection / keyframe extraction from long gameplay video — 2026-06-21" |
 | 03 | `resolution-agnostic-geometry` | Authored — `modules/03_resolution-agnostic-geometry.md` | CLAUDE.md ("Never bake in a resolution" constraint); "Card/region localization robust to art swaps under a tight compute budget — 2026-06-21" |
 | 04 | `card-localization` | Authored — `modules/04_card-localization.md` | "Card/region localization robust to art swaps under a tight compute budget — 2026-06-21" |
-| 05 | `card-identification` | Authored — `modules/05_card-identification.md` | "Card identification that is cheap to retrain when art changes — 2026-06-21" |
+| 05 | `card-identification` | Authored — `modules/05_card-identification.md` | "Card identification that is cheap to retrain when art changes — 2026-06-21"; "Why a frozen-ImageNet embedding + NN gallery collapses on stylized cards, and how to fix it — 2026-06-22" |
 | 06 | _(on-card-text)_ | Planned | "Lightweight OCR for short on-card text and numbers in game UI — 2026-06-21" |
 | 07 | _(game-state-assembly)_ | Planned | — |
 | 08 | `rest-serving` | Authored — `modules/08_rest-serving.md` | "Serving CV inference over a REST API (Python) — 2026-06-21" |
-| 09 | `staying-alive` | Authored — `modules/09_staying-alive.md` | `research/RESEARCH.md` "Card identification — 2026-06-21"; "Runtime compute budget — 2026-06-21"; "Lightweight OCR — 2026-06-21"; `src/dbcv/gallery.py`; `src/dbcv/localize.py` |
+| 09 | `staying-alive` | Authored — `modules/09_staying-alive.md` | `research/RESEARCH.md` "Card identification — 2026-06-21"; "Why a frozen-ImageNet embedding + NN gallery collapses on stylized cards — 2026-06-22"; "Runtime compute budget — 2026-06-21"; "Lightweight OCR — 2026-06-21"; `src/dbcv/gallery.py`; `src/dbcv/localize.py` |
 
 **Placement note (Module 00):** The environment module is a prerequisite cross-cutting concern, not a CV technique in the 9-module arc. It is slotted as Module 00 so the arc (Modules 01–09) can remain intact. Learners should complete it before running any pipeline code.

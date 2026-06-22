@@ -4,7 +4,7 @@
 
 **What you'll be able to do:**
 
-1. Describe the three pipeline stages that change when the card art is swapped, and explain concretely what "re-fitting" means for each one — no gradient steps for localization or identification, font re-render for the OCR stage.
+1. Describe the three pipeline stages that change when the card art is swapped, and explain concretely what "re-fitting" means for each one — no gradient steps for localization (HSV re-tune) and for the *classical* identification fallback (gallery rebuild), a short **re-fine-tune** for the *adopted* embedding identifier, and a font re-render for the OCR stage. Explain the accuracy ↔ retrain-cost tradeoff that the adopted identifier now makes.
 2. Explain why the trained classifier was rejected for production identification, using both the art-swap argument and the training-cost caveat for Pascal hardware.
 3. Identify what a production deployment would add that this pipeline does not currently build: drift/health monitoring, confidence tracking over time, and an automated re-fit trigger.
 4. Describe the failure modes that arise when these missing production concerns are absent — silent drift, a re-tune that overfits one art set, confidence thresholds that go stale.
@@ -18,7 +18,7 @@ The alternate art set for *Demon Bluff* uses different character illustrations o
 From the pipeline's perspective, this event touches three things:
 
 1. **Localization** relies on HSV colour ranges tuned to the current art palette (the purple role rings, the orange card backs, the red demon accents). Different art may use different dominant hues.
-2. **Identification** relies on a reference gallery built from images of the current card art. The same character in different art is a visually distinct image.
+2. **Identification** relies on a reference gallery built from images of the current card art. The same character in different art is a visually distinct image. The *classical* fallback rebuilds its gallery with zero training; the *adopted* fine-tuned embedding identifier is fit to the current characters, so it is best **re-fine-tuned** on a swap (still cheap, still label-free) — see below.
 3. **On-card OCR** (the deferred Stage 5) relies on a custom recognizer trained on rendered crops of the current card font. A different art set may use a different font rendering.
 
 How expensive each re-fit is — that question was answered at design time, before the pipeline was written.
@@ -37,17 +37,19 @@ Estimated re-tune cost: 15–30 minutes, no GPU, no labeled data, no code change
 
 **Why is this possible?** Because localization was built to be art-independent by construction. The cards' *positions* and *sizes* are stable properties of the game layout; only their *colours* depend on the art set. The research and design rationale is in `research/RESEARCH.md`, "Card/region localization robust to art swaps under a tight compute budget — 2026-06-21," and is recorded as a confirmed decision in `PROJECT-PITCH.md` (2026-06-22 decisions table).
 
-### Identification: rebuild the reference gallery from new art (zero training, ~seconds)
+### Identification: a tradeoff that changed (classical = zero training; adopted model = re-fine-tune)
 
-The identification stage in `src/dbcv/gallery.py` and `src/dbcv/identify.py` stores the card art as an in-memory reference gallery: for each character, one or more reference PNGs are loaded at startup, and their HSV histograms and ORB descriptors are precomputed. Matching a board crop against the gallery is a nearest-neighbor lookup over these precomputed representations — no weights are trained, no gradient is computed.
+This is the one re-fit story the project **revised in practice**, and the revision is itself the lesson. The original design treated identification as strictly zero-training on a swap. That is still true of the *classical fallback*, but the *adopted default* changed it — and the change was a deliberate accuracy ↔ retrain-cost trade, not a regression.
 
-On an art swap: collect the reference PNG for each character in the new art set, place them in the `knowledge-base/card-art/<role_class>/<identity>/` directory tree, and re-run `build_gallery()`. The function walks the directory, loads every PNG, computes HSV histograms and ORB descriptors, and returns a populated `Gallery` object. The time cost is dominated by image I/O and histogram computation over ~67 reference images — approximately 50–100 ms total. Zero gradient steps. No GPU required.
-
-The gallery-builder's own module comment states this directly:
+**The classical fallback — still zero training, ~seconds.** `src/dbcv/gallery.py` and `src/dbcv/identify.py` store the card art as an in-memory reference gallery: for each character, one or more reference PNGs are loaded at startup, and their HSV histograms and ORB descriptors are precomputed. Matching a board crop is a nearest-neighbor lookup over these precomputed representations — no weights trained, no gradient computed. On an art swap: drop the new PNGs into `knowledge-base/card-art/<role_class>/<identity>/` and re-run `build_gallery()` (~50–100 ms over ~67 images, no GPU). The gallery-builder's own module comment states it directly:
 
 > "**Zero training.** An art swap = re-run `build_gallery()` over the new directory. No gradient steps, no stored model files, no retraining."
 
-The shipped classical baseline (HSV histogram + ORB tiebreaker) reaches approximately 40–60% accuracy on face-up cards in the current art set — a measured lower bound, not a production target. The deferred upgrade (small frozen embedding backbone + nearest-neighbour, `research/RESEARCH.md` entry 3, sources 1–3) would increase that accuracy. Importantly, the upgrade preserves the art-swap property: re-embedding ~44 reference images through a frozen backbone takes seconds and still requires zero training. Both the classical baseline and the deferred embedding upgrade are designed to survive an art swap without a training run.
+That classical baseline reaches ~40–60% on face-up cards in the current art — a measured lower bound, not a production target.
+
+**The adopted default — a fine-tuned embedding-NN, re-fine-tuned on a swap.** Module 05 tells the full story: a *frozen* ImageNet embedding backbone was supposed to keep the zero-training property (re-embed the new references, done) — but it collapsed the stylised characters and over-identified, *losing to the classical baseline*. The fix was to **domain-fine-tune** the backbone (Proxy-Anchor LP-FT), which separated the characters (inter-prototype cosine 0.85→0.41) and was adopted as the default. The consequence for *this* module: the served backbone is now fit to the **current** 43 characters, so a genuinely new art set is best handled by **re-fine-tuning** it — `utils/python/finetune_embedding.py`, ~minutes on the Titan Xp — and then rebuilding the gallery. A quick re-embed against the existing fine-tuned backbone still *works*, but won't separate unfamiliar art as cleanly.
+
+**The honest tradeoff.** We gave up the pure zero-gradient re-fit for identification's *default* in exchange for a large accuracy gain on the current art. The new cost is still cheap by any production standard — minutes, **no human labeling** (the fine-tune augments the clean reference art synthetically), no leaving the dev box — and the truly zero-gradient classical path remains available as a fallback. This is the kind of trade a real system makes consciously: a recognizer that is *too* cheap to adapt may simply not be good enough, and the right answer is often a cheap-but-nonzero re-fit rather than a free-but-weak one.
 
 **Why was the trained classifier rejected?** A small CNN trained to classify card crops into ~44 character classes would likely achieve higher accuracy than the classical baseline. This is explicitly discussed in Module 05 as Option D. It is rejected because it is the only approach in the identification space that *must be relabeled and retrained on every art swap*. Relabeling means drawing bounding boxes on hundreds of new-art frames and assigning character labels; retraining means running a training job. On a free Colab T4 this takes a few hours for a nano-class model. On the Titan XP (Pascal architecture, no Tensor Cores), INT8 quantization and mixed-precision training provide no speedup, and training is done in FP32 — slower still. The compute budget research entry (`research/RESEARCH.md`, "Runtime compute budget — 2026-06-21") documents the Pascal limitation explicitly: "keep dev work FP32" and "slower than Ampere, no mixed precision."
 
@@ -119,7 +121,8 @@ This is the design posture the course is trying to teach: anticipate the failure
 
 ## Further reading
 
-- `research/RESEARCH.md`, "Card identification that is cheap to retrain when art changes — 2026-06-21" — the identification research entry; sources 1 (Snell et al., prototypical networks), 2 (Wu et al., NN retrieval vs. classifier), and 3 (Howard et al., MobileNetV3) ground the embedding-NN deferred upgrade. The "fit for our constraints" section explicitly states the zero-training re-fit property.
+- `research/RESEARCH.md`, "Card identification that is cheap to retrain when art changes — 2026-06-21" — the original identification research entry; sources 1 (Snell et al., prototypical networks), 2 (Wu et al., NN retrieval vs. classifier), and 3 (Howard et al., MobileNetV3) ground the embedding-NN approach and the zero-training-on-swap *aspiration*.
+- `research/RESEARCH.md`, "Why a frozen-ImageNet embedding + NN gallery collapses on stylized cards, and how to fix it — 2026-06-22" — the follow-up entry that records *why* the zero-training frozen approach lost to classical (domain shift) and prescribes the adopted fine-tune (Proxy-Anchor LP-FT). This is the basis for the revised re-fit story above: the adopted identifier re-fine-tunes on a swap rather than re-embedding for free.
 - `research/RESEARCH.md`, "Runtime compute budget: what fits a mid-grade gaming PC and trains on a Titan XP / Colab T4 — 2026-06-21" — the compute-budget entry; the Pascal/Titan XP FP32 caveat and the "~2.5 h Colab T4 fine-tune" figure are documented there and bear on the cost of the rejected trained-classifier path.
 - `research/RESEARCH.md`, "Lightweight OCR for short on-card text and numbers in game UI — 2026-06-21" — the OCR research entry; the "fit for our constraints" section describes the synthetic-render re-training path for the closed-vocabulary recognizer.
 - `src/dbcv/gallery.py` — the gallery builder; the module docstring states the zero-training re-fit guarantee explicitly.

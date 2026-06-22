@@ -11,16 +11,17 @@ The map of `src/`. Read this and `CodeDocs/00_PROJECT.md` **before** opening any
 
 ## Status
 
-**Stages 0–3 (classical + embedding-NN) + REST + CLI landed 2026-06-22.**
-`src/dbcv/` now contains the full package through Stage 3:
+**Stages 0–2 (classical + fine-tuned embedding-NN) + REST + CLI landed 2026-06-22.** (Stage 3 = OCR, not built yet.)
+`src/dbcv/` now contains the full package through Stage 2 identification:
 - Stage 0 (frame-state gate): `frame_state.py`
 - Stage 1 (classical localizer): `localize.py`
-- Stage 2 (classical identification baseline): `gallery.py` + `identify.py` (`classify_crop`)
-- Stage 3 (embedding-NN identifier): `embed.py` (new) + `gallery.py` (`build_embedding_gallery`) +
-  `identify.py` (`classify_crop_embedding`)
-- REST: `api.py` — embedding-NN is the default identifier; classical retained as fallback
-- CLI: `utils/python/run_pipeline.py`
-- Dev export tool: `utils/python/export_backbone.py` (requires torch; generates `models/*.onnx`)
+- Stage 2 (identification): classical baseline — `gallery.py` + `identify.py` (`classify_crop`);
+  **adopted default** — embedding-NN over a fine-tuned backbone: `embed.py` + `gallery.py`
+  (`build_embedding_gallery`) + `identify.py` (`classify_crop_embedding`)
+- REST: `api.py` — the fine-tuned embedding-NN is the default identifier; classical retained as fallback
+- CLI: `utils/python/run_pipeline.py` (wires the classical identifier)
+- Dev model tools (require torch): `utils/python/finetune_embedding.py` (generates the served
+  fine-tuned model) and `utils/python/export_backbone.py` (generates the frozen baseline)
 
 **81 tests pass** (60 original + 21 new embedding tests). Suite runtime **~23 s** (was ~295 s —
 fixed 2026-06-22 via process-level memoization of `build_gallery`, `OnnxEmbedder`, and
@@ -30,9 +31,9 @@ Source overviews live under `CodeDocs/sources/dbcv/`:
 - [`schema.md`](sources/dbcv/schema.md) — Pydantic v2 models (`GameStateSnapshot`, etc.)
 - [`frame_state.md`](sources/dbcv/frame_state.md) — Stage 0 frame-state gate (`classify_frame_state`)
 - [`localize.md`](sources/dbcv/localize.md) — localizer interface + classical implementation
-- [`gallery.md`](sources/dbcv/gallery.md) — classical gallery + **Stage 3** embedding gallery
-- [`embed.md`](sources/dbcv/embed.md) — **NEW** `OnnxEmbedder` (Stage 3 runtime, no torch)
-- [`identify.md`](sources/dbcv/identify.md) — classical HSV matcher + Stage 3 embedding-NN identifier
+- [`gallery.md`](sources/dbcv/gallery.md) — classical gallery + embedding gallery (Stage 2)
+- [`embed.md`](sources/dbcv/embed.md) — `OnnxEmbedder` (Stage 2 embedding runtime, fine-tuned model, no torch)
+- [`identify.md`](sources/dbcv/identify.md) — classical HSV matcher + fine-tuned embedding-NN identifier (Stage 2)
 - [`assemble.md`](sources/dbcv/assemble.md) — snapshot assembly (pure function)
 - [`pipeline.md`](sources/dbcv/pipeline.md) — end-to-end orchestration + `crop_relative`
 - [`api.md`](sources/dbcv/api.md) — FastAPI app, lifespan (builds both galleries), `POST /v1/snapshot`

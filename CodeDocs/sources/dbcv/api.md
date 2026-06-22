@@ -1,6 +1,6 @@
 # CodeDocs/sources/dbcv/api.py
 
-**Status:** Stage 3 active — single endpoint; embedding-NN identifier built in lifespan (classical retained as fallback).
+**Status:** active — single endpoint; the fine-tuned embedding-NN identifier (Stage 2) is built in lifespan as the default (classical retained as fallback).
 
 **Purpose:** FastAPI application object and the `POST /v1/snapshot` endpoint.
 Follows the lifespan + plain-def patterns from research/RESEARCH.md entry 5.
@@ -21,10 +21,10 @@ async def lifespan(application: FastAPI):
 Runs at startup (before first request) and shutdown.  Sets on `application.state`:
 - `settings` — `Settings` instance from `get_settings()`
 - `gallery` — `Gallery` object from `build_gallery()` (67 references, 43 townees)
-- `classical_identifier` — callable from `make_gallery_identifier(gallery)` (Stage 2, retained as fallback)
-- `embedder` — `OnnxEmbedder` instance via `get_onnx_embedder()` (process-cached; loaded from `models/mobilenetv3_small_embed.onnx`)
+- `classical_identifier` — callable from `make_gallery_identifier(gallery)` (classical baseline, retained as fallback)
+- `embedder` — `OnnxEmbedder` instance via `get_onnx_embedder()` (process-cached; loads `models/mobilenetv3_small_embed.onnx`, now the **fine-tuned** served model)
 - `embed_gallery` — `EmbeddingGallery` from `build_embedding_gallery()` (43 prototypes, [43,576] matrix)
-- `identifier` — `make_embedding_identifier(embedder, embed_gallery)` (Stage 3, **the default**)
+- `identifier` — `make_embedding_identifier(embedder, embed_gallery)` (the adopted fine-tuned embedding-NN, **the default**)
 
 If the ONNX file is absent, the lifespan emits a `warnings.warn` and falls back:
 `identifier` = `classical_identifier`; `embedder` and `embed_gallery` = None.
