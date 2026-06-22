@@ -16,6 +16,11 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Claude launcher + townee clarification
+
+- Added `.claude/launch.json` — the Claude Code desktop launcher (`local-server` → `python utils/python/serve_site.py --port 8000`). Verified via the preview MCP that it drives the running server and the site renders. Gitignored `.claude/settings.local.json` defensively (public repo). Backed out a `.vscode/launch.json` written from a first-pass misread of the request.
+- Recorded game knowledge on the three ambiguous minion entries (**source: project player; not yet cross-checked against the wiki text**): `Minion` and `Twin Minion` are functionally identical (a lone one is *usually* `Minion` — not a hard rule, due to card/mode interactions) → collapse to **one recognition class** for CV; `Puppet` is **created by the `Puppeteer`** card (distinctions live on the cached Puppeteer page). Synced into `ROSTER.md`, `PROJECT-PITCH` (still-open → clarified), `PLAN-pipeline`, and the public `site/pages/notes.html` (verified rendered).
+
 ## 2026-06-21 — serve_site.py: flush startup banner
 
 One-line follow-up: flush the local server's startup banner so the URL prints immediately even when stdout is captured/redirected (the Claude Code preview-window case). Also confirmed the first Pages run's `startup_failure` was Pages-not-yet-enabled; after enabling the Actions source the `workflow_dispatch` run deployed cleanly and the site returns 200 at the project subdirectory.

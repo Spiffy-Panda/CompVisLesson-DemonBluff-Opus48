@@ -41,7 +41,7 @@ The first research pass (`research/RESEARCH.md`, six A/B-sourced entries) plus i
 
 - **Temporal logic**: how much state to recover by tracking across frames vs. re-reading each frame cold (sample shows transient modals that occlude — argues for temporal smoothing).
 - **Course delivery** stack: how the web-based lesson is built and (if ever) published — gated by Rule 6.
-- Whether `Minion` / `Puppet` / `Twin Minion` category entries are distinct recognizable faces or base/mechanic pages (verify when building the gallery).
+- ~~Whether `Minion` / `Puppet` / `Twin Minion` are distinct faces~~ **clarified:** `Minion` and `Twin Minion` are functionally identical (a lone one is *usually* `Minion` — not a hard rule, due to card/mode interactions), so they collapse to one recognition class; `Puppet` is created by the `Puppeteer` card. Residual CV detail only: confirm whether Minion/Twin Minion share art. See `knowledge-base/wiki/townees/ROSTER.md`.
 
 ## Decisions table
 

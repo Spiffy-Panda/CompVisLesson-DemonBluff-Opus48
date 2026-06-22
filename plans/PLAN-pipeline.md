@@ -36,4 +36,4 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 ## Cross-cutting
 - [ ] Keep every runtime model ≤~30 M params / ≤~100 MB; foundation models dev-only.
 - [ ] Every stage that adopts a technique cites its `research/RESEARCH.md` entry and gets a lesson module.
-- [ ] Resolve open questions: temporal logic depth; whether `Minion`/`Puppet`/`Twin Minion` are distinct faces; course delivery stack.
+- [ ] Resolve open questions: temporal logic depth; course delivery stack. (`Minion`/`Twin Minion` → one recognition class; `Puppet` is `Puppeteer`-created — see [ROSTER](../knowledge-base/wiki/townees/ROSTER.md).)
