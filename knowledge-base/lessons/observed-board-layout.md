@@ -5,7 +5,7 @@ What the *actual* sample frames show about the *Demon Bluff* board, derived by s
 ## The board
 
 - **Cards are arranged in a radial ring** around a central pentagram/altar. Not a rectangular grid — a roughly circular/oval arrangement.
-- **Each card carries a numbered position badge** (`#1`, `#2`, … `#8+`) at a consistent spot on the card. These badges are **art-independent UI chrome** — ideal landmarks for layout-based localization.
+- **Each card carries a numbered position badge** (`#1`, `#2`, … `#8+`) at a consistent spot on the card. These badges are **art-independent UI chrome** — geometrically ideal landmarks for layout-based localization. *(Empirical caveat, 2026-06-22 spike: raw bright-blob detection on the badges is **unusable** — card clue/ability text panels alias as badge blobs, ~30–60 false blobs/frame. The shipped localizer instead segments card regions by HSV colour + contour geometry; badges are best reserved for **ordering** the detected boxes via targeted `#`-glyph matching, not as the primary anchor.)*
 - **Board size varies between sessions** (Sample1 shows fewer cards than Sample2). The localizer must **derive the card count and positions from the layout**, never assume a fixed N. (Reinforces the no-baked-geometry rule.)
 - **Each card shows:** the role **art**, a **name label** (text) beneath the art, and on revealed/acted cards a **clue/ability text** (e.g. "It's a 3", "I sense a Corruption"). Card borders/backings appear color-coded by state/alignment.
 
@@ -26,5 +26,5 @@ What the *actual* sample frames show about the *Demon Bluff* board, derived by s
 
 - **Localization** → geometry from the ring + numbered badges + UI anchors; classical, retrain-free. See `research/RESEARCH.md` localization entry, and [[cv-project-playbook]].
 - **Identification** → art embedding-NN **and** name-label OCR as a cross-check; both re-fit from references on an art swap.
-- **State detection** → a "board vs. menu vs. modal" gate is mandatory (modals occlude; menus aren't boards). See the frame-selection entry's board-gate recommendation.
+- **State detection** → a "board vs. menu vs. modal" gate is mandatory (modals occlude; menus aren't boards). **Implemented 2026-06-22** as a **center-vs-ring brightness ratio** gate (`src/dbcv/frame_state.py`): the modal panel is far brighter than the dark starfield ring around it (ratio ~3–6) where a board is near-uniform (~1.0); absolute brightness alone failed because modals share the board's dark background.
 - **On-card reading** → closed-vocabulary clue/HUD text favors a tiny custom recognizer over general OCR.

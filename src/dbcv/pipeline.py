@@ -2,15 +2,30 @@
 dbcv/pipeline.py — End-to-end frame → GameStateSnapshot pipeline.
 
 This is the orchestration layer.  It:
+  0. Runs the frame-state gate (Stage 0) to classify the frame as board /
+     modal / menu.  Non-board frames skip straight to assembly with cards=[].
   1. Reads the frame's dimensions from image.shape — never from a constant.
   2. Calls the localizer to find card bounding boxes (relative coords).
   3. For each box, converts relative → pixel coords, crops the region, and
      calls the identifier.
   4. Passes everything to assemble() for packaging into a GameStateSnapshot.
 
-The localizer and identifier are injectable callables, so tests and the
-lesson plan can swap in stubs or real implementations without touching this
-module.
+The localizer, identifier, and frame_state_classifier are all injectable
+callables, so tests and the lesson plan can swap in stubs or real
+implementations without touching this module.
+
+Teaching note on the gate-first pattern
+-----------------------------------------
+Placing the state gate at the very beginning of ``run_pipeline`` (Stage 0)
+is a canonical pattern in production CV pipelines:
+
+  - It prevents expensive stages (localisation, identification) from wasting
+    CPU on frames that cannot possibly have useful card data.
+  - It makes the failure mode explicit in the output: ``frame_state="modal"``
+    tells a consumer *why* ``cards`` is empty, rather than returning an
+    empty list with no explanation.
+  - It is testable in isolation: pass a ``frame_state_fn`` stub in tests to
+    decouple gate tests from localization tests.
 
 Teaching note on crop_relative
 --------------------------------
@@ -28,6 +43,7 @@ from typing import Callable
 import numpy as np
 
 from dbcv.assemble import assemble
+from dbcv.frame_state import FrameState, classify_frame_state
 from dbcv.identify import identify
 from dbcv.localize import BboxRel, LocalizerCallable, classical_localize
 from dbcv.schema import GameStateSnapshot, Resolution, Source
@@ -95,6 +111,7 @@ def run_pipeline(
     source: Source,
     localizer: LocalizerCallable | Callable[..., list[BboxRel]] = classical_localize,
     identifier: Callable[[np.ndarray], tuple[str, str, float]] = identify,
+    frame_state_fn: Callable[[np.ndarray], FrameState] = classify_frame_state,
 ) -> GameStateSnapshot:
     """Run the full frame → GameStateSnapshot pipeline.
 
@@ -112,11 +129,18 @@ def run_pipeline(
     identifier:
         Callable ``(card_crop: np.ndarray) -> (identity, role_class, confidence)``.
         Defaults to the stub identifier.
+    frame_state_fn:
+        Callable ``(image: np.ndarray) -> FrameState``.  Defaults to
+        ``classify_frame_state`` (the classical center-vs-ring brightness ratio
+        gate).  Inject a lambda / stub in tests to isolate the gate from the
+        localiser:  ``frame_state_fn=lambda _: "board"``.
 
     Returns
     -------
     GameStateSnapshot
         A fully-formed, versioned snapshot ready to be returned by the API.
+        ``snapshot.frame_state`` records the Stage 0 gate decision.
+        When frame_state is "modal" or "menu", ``snapshot.cards`` is always [].
 
     Notes
     -----
@@ -124,12 +148,30 @@ def run_pipeline(
       snapshot; the same measured value is passed to the localizer.
     - The relative-to-pixel conversion happens inside ``crop_relative``,
       which is the single, documented place that converts fractions → pixels.
+    - The frame state gate (Stage 0) runs first; if it returns "modal" or
+      "menu" the localizer and identifier are skipped entirely.  This prevents
+      false card detections on modal/overlay frames.
     """
+    # Step 0: Frame-state gate — classify the frame before any expensive CV
+    #
+    # WHY FIRST: The localizer was designed for board frames (radial card ring).
+    # On modal frames it misfires because the HSV colour segmentation picks up
+    # card art *inside the dialog*, producing spurious detections.  Running the
+    # gate here costs ~1 ms (a single numpy mean over two regions) and prevents
+    # all downstream misfires.
+    state: FrameState = frame_state_fn(image)
+
     # Step 1: Measure the frame — never assume a resolution
     h_img, w_img = image.shape[:2]
     resolution = Resolution(w=w_img, h=h_img)
 
-    # Step 2: Localize — find card regions as relative bounding boxes
+    # Step 2 (only for board frames): Localize — find card regions
+    if state != "board":
+        # Non-board frame: skip localizer and identifier entirely.
+        # Assemble a snapshot with an empty card list; frame_state records why.
+        base = assemble(source, resolution, [], [])
+        return base.model_copy(update={"frame_state": state})
+
     boxes: list[BboxRel] = localizer(image, resolution)
 
     # Step 3: Identify — for each box, crop and classify
@@ -143,4 +185,5 @@ def run_pipeline(
             identities.append(identifier(crop))
 
     # Step 4: Assemble — package everything into the versioned snapshot
-    return assemble(source, resolution, boxes, identities)
+    base = assemble(source, resolution, boxes, identities)
+    return base.model_copy(update={"frame_state": state})  # "board" -- gate passed

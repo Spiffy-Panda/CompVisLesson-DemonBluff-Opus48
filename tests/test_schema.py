@@ -48,7 +48,7 @@ def sample_snapshot() -> GameStateSnapshot:
                 confidence=0.0,
             ),
         ],
-        schema_version="0.1.0",
+        schema_version="0.2.0",
     )
 
 
@@ -59,7 +59,7 @@ def sample_snapshot() -> GameStateSnapshot:
 
 def test_snapshot_construction(sample_snapshot: GameStateSnapshot) -> None:
     """GameStateSnapshot is constructable without errors."""
-    assert sample_snapshot.schema_version == "0.1.0"
+    assert sample_snapshot.schema_version == "0.2.0"
     assert len(sample_snapshot.cards) == 2
 
 
@@ -81,6 +81,8 @@ def test_json_round_trip(sample_snapshot: GameStateSnapshot) -> None:
     assert reparsed.resolution.w == sample_snapshot.resolution.w
     assert reparsed.resolution.h == sample_snapshot.resolution.h
     assert len(reparsed.cards) == len(sample_snapshot.cards)
+    # frame_state added in 0.2.0 — survives round-trip
+    assert reparsed.frame_state == sample_snapshot.frame_state
 
 
 def test_card_read_fields(sample_snapshot: GameStateSnapshot) -> None:
@@ -118,9 +120,35 @@ def test_unknown_card_defaults() -> None:
 
 
 def test_schema_version_default() -> None:
-    """A snapshot constructed without an explicit schema_version gets 0.1.0."""
+    """A snapshot constructed without an explicit schema_version gets 0.2.0.
+
+    0.2.0 added the frame_state field (Stage 0 gate result).
+    """
     snap = GameStateSnapshot(
         source=Source(video="test", frame_index=0, timestamp_s=0.0),
         resolution=Resolution(w=100, h=100),
     )
-    assert snap.schema_version == "0.1.0"
+    assert snap.schema_version == "0.2.0"
+
+
+def test_frame_state_default_is_unknown() -> None:
+    """A snapshot constructed without frame_state gets 'unknown' as the default.
+
+    'unknown' distinguishes test fixtures (no gate ran) from pipeline outputs.
+    """
+    snap = GameStateSnapshot(
+        source=Source(video="test", frame_index=0, timestamp_s=0.0),
+        resolution=Resolution(w=100, h=100),
+    )
+    assert snap.frame_state == "unknown"
+
+
+def test_frame_state_modal_accepted() -> None:
+    """frame_state field accepts all four documented values without error."""
+    for state in ("board", "modal", "menu", "unknown"):
+        snap = GameStateSnapshot(
+            source=Source(video="test", frame_index=0, timestamp_s=0.0),
+            resolution=Resolution(w=100, h=100),
+            frame_state=state,  # type: ignore[arg-type]
+        )
+        assert snap.frame_state == state

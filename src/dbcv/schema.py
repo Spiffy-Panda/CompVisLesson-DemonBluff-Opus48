@@ -15,12 +15,24 @@ Design notes
   are None until a real reader fills them in.
 - ``role_class`` uses a closed Literal set that mirrors the Demon Bluff role
   taxonomy from knowledge-base/wiki.  ``"unknown"`` is the stub default.
+- ``GameStateSnapshot.frame_state`` (added in 0.2.0) records the Stage 0
+  gate result.  When ``frame_state`` is "modal" or "menu" the ``cards`` list
+  will be empty because the localizer is skipped for non-board frames.
 
 Research grounding
 ------------------
 The overall shape (resolution-relative boxes, per-card confidences, schema
 version in the payload) was driven by research/RESEARCH.md entry 5
 ("Serving CV inference over a REST API") and the io/outputs.md draft.
+
+Schema changelog
+----------------
+0.1.0  Initial slice: source, resolution, cards, schema_version.
+0.2.0  Added ``frame_state`` field (Stage 0 gate result).  The ``cards`` list
+       is now guaranteed empty when frame_state is "modal" or "menu".
+       Default for ``frame_state`` is "unknown" so that callers that construct
+       a snapshot without running the gate are clearly distinguishable from
+       board snapshots.
 """
 
 from typing import Literal
@@ -121,18 +133,42 @@ class GameStateSnapshot(BaseModel):
     Returned by POST /v1/snapshot and optionally written to dataset/state/
     for debugging.  The ``schema_version`` field lets clients detect when the
     contract changes; bump it on any breaking change.
+
+    frame_state (added 0.2.0)
+    --------------------------
+    The Stage 0 gate result.  One of:
+        "board"   -- the card ring + pentagram are visible; localizer ran.
+        "modal"   -- a dialog / deck-viewer overlaid the board; ``cards`` is [].
+        "menu"    -- a full-screen menu / loading screen; ``cards`` is [].
+        "unknown" -- the gate was not run (e.g. a snapshot constructed
+                     directly in tests without running the pipeline gate).
+
+    When frame_state is "modal" or "menu", the ``cards`` list is always empty
+    because the localizer is intentionally skipped to avoid misfires.
     """
 
     source: Source = Field(description="Provenance: video ID, frame index, timestamp.")
     resolution: Resolution = Field(
         description="Frame dimensions read from the decoded image — never assumed."
     )
+    frame_state: Literal["board", "modal", "menu", "unknown"] = Field(
+        default="unknown",
+        description=(
+            "Stage 0 gate result: 'board' means the localizer ran; "
+            "'modal' or 'menu' means it was intentionally skipped; "
+            "'unknown' means the gate was not executed (e.g. test fixtures). "
+            "Added in schema version 0.2.0."
+        ),
+    )
     cards: list[CardRead] = Field(
         default_factory=list,
-        description="One entry per card found by the localizer.",
+        description=(
+            "One entry per card found by the localizer. "
+            "Always empty when frame_state is 'modal' or 'menu'."
+        ),
     )
     schema_version: str = Field(
-        default="0.1.0",
+        default="0.2.0",
         description=(
             "Semver string for this schema.  Clients should check this field "
             "before parsing.  Bump on any breaking change to the snapshot shape."

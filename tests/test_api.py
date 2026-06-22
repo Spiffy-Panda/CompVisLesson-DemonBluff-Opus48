@@ -130,7 +130,7 @@ def test_snapshot_http_200(
 def test_snapshot_parses_as_game_state(
     client: TestClient, sample_frame_path: Path
 ) -> None:
-    """Response body validates as a GameStateSnapshot."""
+    """Response body validates as a GameStateSnapshot with schema version 0.2.0."""
     with open(sample_frame_path, "rb") as fh:
         response = client.post(
             "/v1/snapshot",
@@ -139,7 +139,8 @@ def test_snapshot_parses_as_game_state(
     assert response.status_code == 200
     data = response.json()
     snapshot = GameStateSnapshot.model_validate(data)
-    assert snapshot.schema_version == "0.1.0"
+    # Schema bumped to 0.2.0 when frame_state field was added (Stage 0 gate).
+    assert snapshot.schema_version == "0.2.0"
 
 
 def test_resolution_matches_actual_image(

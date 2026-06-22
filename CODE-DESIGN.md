@@ -15,6 +15,7 @@ The map of `src/`. Read this and `CodeDocs/00_PROJECT.md` **before** opening any
 
 Source overviews live under `CodeDocs/sources/dbcv/`:
 - [`schema.md`](sources/dbcv/schema.md) — Pydantic v2 models (`GameStateSnapshot`, etc.)
+- [`frame_state.md`](sources/dbcv/frame_state.md) — Stage 0 frame-state gate (`classify_frame_state`)
 - [`localize.md`](sources/dbcv/localize.md) — localizer interface + stub
 - [`identify.md`](sources/dbcv/identify.md) — identifier interface + stub
 - [`assemble.md`](sources/dbcv/assemble.md) — snapshot assembly (pure function)
@@ -24,4 +25,4 @@ Source overviews live under `CodeDocs/sources/dbcv/`:
 
 I/O contracts updated in `CodeDocs/io/`:
 - `inputs.md` — documents new API frame upload format
-- `outputs.md` — `GameStateSnapshot` schema frozen at version **0.1.0**
+- `outputs.md` — `GameStateSnapshot` schema at version **0.2.0** (added `frame_state` field)

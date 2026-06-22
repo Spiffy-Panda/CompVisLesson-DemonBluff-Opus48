@@ -16,6 +16,18 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Deepening round 1: foundation lesson modules + Stage 0 state gate
+
+Two parallel sub-agents on disjoint tiers (lessons vs `src/`), both light/classical (conservative path).
+
+**Lessons (primary deliverable, first modules authored):** `Lesson-Plan/modules/00_python-environments.md` (the user-requested **venv vs virtualenv vs pip vs conda vs uv** module — teaches the interpreter/venv/installer split, compares all five honestly, justifies this project's venv+pip choice, no fabricated benchmarks) and `Lesson-Plan/modules/04_card-localization.md` (classical vs trained-detector vs foundation-model, worked example = our real spike results, with the honest caveats — art-tuned HSV, badge-blob failure, weak state gate). `LESSON-PLAN.md` inventory populated (Modules 00–09; 2 authored / 8 planned). New `research/RESEARCH.md` entry on env tooling (official docs, trust A). Module files use `NN_slug` per the LESSON-PLAN skeleton. I read Module 00 end-to-end — accurate and well-pitched.
+
+**Stage 0 — frame-state gate (the spike's known gap):** `src/dbcv/frame_state.py` — `classify_frame_state(image) -> "board"|"modal"|"menu"`. The winning discriminator is a **center-vs-ring brightness ratio**: a modal's bright panel sits on the *same dark starfield* as the board, so absolute center-brightness failed (the spike's 0/3), but the panel is ~3–6× brighter than the dark ring around it, where a board is ~1.0–1.1. Threshold 2.0 sits in a clean 3× gap. **7/7 labelled board+modal frames correct**; the partial-modal (`Sample1_006`, peripheral cards visible) is deliberately called "board" so the localizer can still read it. Schema → **v0.2.0** with a `frame_state` field; the pipeline now runs the gate first and **skips localization on non-board frames** (returns `cards=[]`). **24/24 pytest green** (verified by me). CodeDocs + `CODE-DESIGN.md`/`00_PROJECT.md` synced; the stale localize.py "gate held back" TODO removed.
+
+**Also:** resolved the twice-flagged desync — `knowledge-base/lessons/observed-board-layout.md` now carries the badge implementation caveat (blob detection aliases on clue text → badges are for ordering, not anchoring) and notes the implemented state gate.
+
+**Notes / risks:** the gate threshold (2.0) is validated on 3 modal types; a future modal with a very small bright panel could approach it (`Sample1_000` already the closest at 3.1). Frame *selection* proper (stride decode + perceptual-hash dedup) was intentionally skipped this round to keep the gate focused — still owed in Stage 0.
+
 ## 2026-06-22 — Classical localizer promoted into `src/`; approach confirmed
 
 Integrated the spike algorithm into `src/dbcv/localize.py` as `classical_localize` (5 stages: relative HUD-exclusion → HSV segmentation → morphology → contour/geometry filter → IoU-NMS), now the pipeline/API default; `stub_localize` retained as the teaching "before" baseline. Made the API test deterministic on a known board frame (`Sample1_003`, validated 8/8) and added a direct localizer unit test. **12/12 pytest green**; I verified the suite and eyeballed the overlay myself — boxes sit cleanly on all 8 ring cards, HUD + "Benji" overlay excluded. Recorded localization + the REST contract + the env choice as **confirmed** rows in the `PROJECT-PITCH.md` decisions table (superseding the provisional localization entry). This closes the "confirm the approach works first" milestone; next is the step-back into deepening (lesson modules for the validated foundation, then Stage 0's board/modal gate and Stage 2 identification).

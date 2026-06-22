@@ -6,15 +6,14 @@ Update this whenever a produced format changes (Rule 3).
 |--------|----------|--------|-------|
 | Selected frames | `dataset/frames/` (gitignored) | PNG image files | Chosen frames with provenance encoded in the filename (`<Set>_<NNN>_t<SSSSS>s.png`). |
 | Card crops | in-memory only (slice) | numpy array (HxWxC, BGR) | Localized card regions in pixel coordinates, derived from relative boxes. |
-| Game-state snapshot | in-memory / HTTP response | JSON (`GameStateSnapshot`) | The structured board read per frame.  See schema below.  Version: **0.1.0**. |
+| Game-state snapshot | in-memory / HTTP response | JSON (`GameStateSnapshot`) | The structured board read per frame.  See schema below.  Version: **0.2.0**. |
 | REST response | `POST /v1/snapshot` | JSON | Snapshot returned over HTTP.  Shape is identical to the game-state schema. |
 
 ---
 
-## GameStateSnapshot schema — version 0.1.0 (implemented, frozen for slice)
+## GameStateSnapshot schema — version 0.2.0 (current)
 
-Implemented in `src/dbcv/schema.py`.  This section is authoritative; the
-`io/outputs.md` draft was version 0.0.0 / "not frozen."
+Implemented in `src/dbcv/schema.py`.
 
 ```jsonc
 {
@@ -27,6 +26,9 @@ Implemented in `src/dbcv/schema.py`.  This section is authoritative; the
     "w": 1920,    // int — read from decoded image, NEVER hard-coded
     "h": 1080     // int — read from decoded image, NEVER hard-coded
   },
+  "frame_state": "board",   // NEW in 0.2.0 — Stage 0 gate result
+                             // "board" | "modal" | "menu" | "unknown"
+                             // "unknown" only on hand-constructed test fixtures
   "cards": [
     {
       "bbox_rel": [0.08, 0.30, 0.18, 0.30],   // [x, y, w, h] fractions in [0,1]
@@ -41,11 +43,27 @@ Implemented in `src/dbcv/schema.py`.  This section is authoritative; the
       "confidence": 0.91                        // float in [0.0, 1.0]
     }
   ],
-  "schema_version": "0.1.0"  // bump on any breaking change
+  "schema_version": "0.2.0"  // bump on any breaking change
 }
 ```
 
-### Changes from the 0.0.0 draft (in `io/outputs.md` prior to 2026-06-22)
+**Invariant introduced in 0.2.0:** when `frame_state` is `"modal"` or
+`"menu"`, `cards` is always `[]`.  The localizer is intentionally skipped
+for non-board frames to prevent false detections.
+
+---
+
+## Schema changelog
+
+### 0.2.0 (2026-06-22) — Stage 0 frame-state gate
+
+| Field | 0.1.0 | 0.2.0 | Notes |
+|-------|-------|-------|-------|
+| `frame_state` | absent | `"board"\|"modal"\|"menu"\|"unknown"` | Stage 0 gate result |
+| `schema_version` default | `"0.1.0"` | `"0.2.0"` | Bumped for field addition |
+| `cards` semantics | populated when localizer runs | guaranteed `[]` when `frame_state != "board"` | Pipeline enforces this |
+
+### 0.1.0 (2026-06-22) — Initial slice
 
 | Field | Draft (0.0.0) | Implemented (0.1.0) | Notes |
 |-------|--------------|---------------------|-------|
@@ -54,6 +72,8 @@ Implemented in `src/dbcv/schema.py`.  This section is authoritative; the
 | `role_class` | string | `Literal[...]` with Pydantic validation | Now validated at parse time |
 | `confidence` | present | `ge=0.0, le=1.0` validators added | Out-of-range values raise ValidationError |
 | `readings.*` | all present | all present, all nullable | No change in shape |
+
+---
 
 ### Coordinate convention
 

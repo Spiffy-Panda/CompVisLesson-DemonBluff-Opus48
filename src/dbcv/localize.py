@@ -201,9 +201,10 @@ def classical_localize(
     The morphology sizes and contour-filter ratios are geometry-derived and are
     art-independent.
 
-    TODO (Stage 0 future work): add a board-vs-modal gate using
-    ``classify_frame_state`` (spiked in scrap_scripts/ but only 0/3 reliable on
-    modal frames at time of spike — held back pending more modal sample coverage).
+    Stage 0 gate: ``classify_frame_state`` in ``dbcv/frame_state.py`` is now
+    wired into ``run_pipeline`` (pipeline.py) and runs before this function.
+    Non-board frames never reach this localizer.  The gate scores 7/7 on
+    the labeled set (4 board, 3 modal) using a center-vs-ring brightness ratio.
     """
     # Derive dimensions from the image array — never from a hard-coded constant.
     # The ``resolution`` arg is the same information as a dbcv.schema.Resolution;

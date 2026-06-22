@@ -12,8 +12,8 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 3. **Step back**: assess what the slice reveals (esp. whether classical localization is viable on our footage), then deepen each stage with its research-backed method + full lesson module + `CodeDocs/` sync, committing per teachable unit.
 
 ## Stage 0 — Frame selection (no runtime model)
-- [ ] Promote `03_sample_frames.py` patterns into a real selector in `src/`: low fixed-stride decode (fps from media) → perceptual-hash dedup → board/menu/modal gate.
-- [ ] Board-gate via `matchTemplate`/HSV on stable UI anchors; detect occluding modals + streamer overlays.
+- [ ] Promote `03_sample_frames.py` patterns into a real selector in `src/`: low fixed-stride decode (fps from media) → perceptual-hash dedup → board/menu/modal gate. *(partial 2026-06-22: the gate is done in `src/dbcv/frame_state.py`; stride-decode + pHash dedup still owed)*
+- [x] Board-gate detecting occluding modals + menus *(2026-06-22 — `src/dbcv/frame_state.py`, **center-vs-ring brightness ratio**; more robust than matchTemplate against the dark-starfield modal background. Streamer overlays tolerated by the localizer's relative HUD-exclusion zones.)*
 - [ ] Dev-only: PySceneDetect segmentation of the long samples for dataset building.
 
 ## Stage 1 — Localization (classical, layout-based)
@@ -43,7 +43,7 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 
 ## Cross-cutting
 - [x] Repo-local `.venv` + pinned `requirements.txt` (2026-06-22). Standard interpreter for all scripts/agents: `.venv/Scripts/python.exe`.
-- [ ] Author the env-management lesson module: **venv vs uv vs conda vs pip** — when/why each, why this project chose venv+pip (user-requested).
+- [x] Author the env-management lesson module: **venv vs uv vs conda vs pip** *(2026-06-22 — `Lesson-Plan/modules/00_python-environments.md`; cited by new `research/RESEARCH.md` env entry)*.
 - [ ] Keep every runtime model ≤~30 M params / ≤~100 MB; foundation models dev-only.
 - [ ] Every stage that adopts a technique cites its `research/RESEARCH.md` entry and gets a lesson module.
 - [ ] Resolve open questions: temporal logic depth; course delivery stack. (`Minion`/`Twin Minion` → one recognition class; `Puppet` is `Puppeteer`-created — see [ROSTER](../knowledge-base/wiki/townees/ROSTER.md).)

@@ -35,6 +35,18 @@ Every **non-Demon-Bluff** subject researched before a decision. Newest entries o
      pipeline stage (frame-selection → localization → identification → OCR →
      serving → compute budget) rather than by clock time, since they share a date. -->
 
+## Python environment & dependency management (venv/virtualenv/pip/conda/uv) — 2026-06-22
+
+- **Source:**
+  - *`venv` — Creation of virtual environments* — Python 3 standard library docs — https://docs.python.org/3/library/venv.html
+  - *pip User Guide* — https://pip.pypa.io/en/stable/user_guide/
+  - *conda documentation* — Anaconda / conda-forge — https://docs.conda.io/projects/conda/en/stable/
+  - *uv documentation* — Astral — https://docs.astral.sh/uv/
+- **Authority / trust:** **A** — all four are official documentation for their respective projects (Python stdlib, pip maintainers, Anaconda, Astral).
+- **Reason for inclusion / what we were looking for:** Choosing a reproducible environment strategy for a course whose learners run on diverse machines, and teaching the tradeoffs between the main alternatives — specifically to support the user-requested environment-management lesson module.
+- **Abstract of findings:** `venv` (stdlib since Python 3.3) creates an isolated directory with a private `site-packages` and a `python`/`pip` pointing into it; it does not install packages or manage interpreter versions. `pip` (bundled since Python 3.4) installs packages from PyPI into a target environment; a pinned `requirements.txt` (`package==x.y.z`) is the minimal reproducibility mechanism. `virtualenv` is the third-party predecessor to `venv`; it adds faster env creation and broader configuration but is rarely needed directly on modern Python 3. `conda` (Anaconda/Miniconda/miniforge) manages environments *and* installs packages including non-Python native binaries (CUDA, BLAS, MKL); it is not Python-specific, operates on its own channel ecosystem (conda-forge), and provides pre-built binaries for a wider platform matrix than PyPI wheels — but mixing conda and pip installs into the same environment is a documented source of dependency corruption. `uv` (Astral, 2024+) reimplements pip + venv in Rust; per its documentation it installs packages significantly faster than pip via aggressive caching and parallel downloads; it also produces `uv.lock` lockfiles pinning all transitive dependencies, and newer versions manage Python interpreter versions. `uv` is pip-compatible (reads `requirements.txt`, `pyproject.toml`) but is a separate installation step not bundled with Python. Caveats: `conda` and `pip` should not be mixed in the same environment without care; `uv` does not manage non-Python system libraries the way conda does; no vendor speed claims are cited as numbers here because figures vary substantially across machine configurations and cache states.
+- **Fit for our constraints:** The project chose `venv` + pinned `requirements.txt` as the zero-install, universally reproducible baseline — every Python ships `venv`, every learner can follow along without first installing a tool. `uv` (speed) and `conda` (native binary stacks) are taught as alternatives in Module 00 of the lesson plan, with honest tradeoffs. `opencv-python-headless` (not `opencv-python`) is used because the pipeline is server/batch — no GUI, no GTK/Qt dependency. Packages not yet justified by research are consciously deferred from `requirements.txt` (conservative path: onnxruntime, torch, imagehash held back until a pipeline stage warrants them).
+
 ## Frame selection / keyframe extraction from long gameplay video — 2026-06-21
 
 - **Source:**
