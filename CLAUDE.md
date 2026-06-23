@@ -90,14 +90,6 @@ If a deliverable drifts toward "comprehensive reproduction of the source," pull 
 
 Identity rules that gate public output live in the **gitignored** `CLAUDE.local.md`, not here. This file (committed) must never contain the user's dead name, real last name, or private absolute paths.
 
-### Rule 8 — Chat-local enumeration prefixes
-
-When you enumerate items in a list **in chat** (not in committed files), give the list a short mnemonic prefix and prepend `_` to mark it chat-local (ephemeral — a conversational handle, not a tracked identifier). Reference items as `_<PREFIX>.<n>`. The prefix abbreviates the list's purpose so references across separate lists stay unambiguous.
-
-Example: a "Done this session" list → `_D.1`, `_D.2`; a "needs your **C**all" list → `_C.1`, `_C.2`. Then `_D.1` and `_C.1` are distinct — no bare "1." that could mean either list.
-
-The leading `_` denotes chat-local scope; permanent/committed enumerations (the pipeline stages, plan items, the rules above) keep their own durable numbering, no `_`.
-
 ---
 
 ## Where to look first
