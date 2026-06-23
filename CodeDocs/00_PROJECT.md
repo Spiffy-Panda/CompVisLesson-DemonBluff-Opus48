@@ -44,9 +44,15 @@ Each arrow is a design fork the lesson plan will teach, with the chosen techniqu
 
 **Stage 2 embedding-NN identifier landed *and* was fine-tuned + adopted 2026-06-22.**
 `src/dbcv/` now contains the full package through Stage 2 identification (both classical
-and the adopted fine-tuned embedding-NN). Stage 3 = OCR, not built yet. 81 tests pass in ~23 s
-(process-level gallery/embedder memoization added 2026-06-22; was ~295 s).
+and the adopted fine-tuned embedding-NN). Stage 3 = OCR, not built yet. 110 tests pass in ~25 s
+(process-level gallery/embedder memoization added 2026-06-22).
 
+- Stage 0 (frame selection — dev/batch): `frame_select.py` — `select_frames` /
+  `iter_selected_frames` cascade: low fixed-stride decode (stride from the media's
+  measured fps, never 30-assumed) → dHash perceptual-hash dedup (Hamming ≤ 8 vs the
+  last *kept* frame) → reuses `classify_frame_state` as the board gate. cv2+numpy only,
+  no torch. **Dev/batch only — never on the REST runtime path** (no whole-video decode
+  per request). Emits `SelectedFrame` metadata records.
 - Stage 0 (frame-state gate): `frame_state.py` — `classify_frame_state`
   correctly classifies all labeled board and modal frames (7/7, 100%).
 - Stage 1 (card localizer): `localize.py` — `classical_localize` validated

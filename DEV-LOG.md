@@ -16,6 +16,22 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-06-22 — Stage 0 frame selector shipped (stride-decode + perceptual-hash dedup)
+
+**Context:** Stage 0 had only the board-state gate; the plan still owed the low-fixed-stride decode + perceptual-hash near-duplicate dedup that turn a ~1 h capture into the handful of frames worth analysing.
+
+**Choice:** New `src/dbcv/frame_select.py` (cv2+numpy, no torch, **dev/batch only — explicitly NOT on the REST path**). Cascade: **strided decode (stride derived from the media's REAL fps) → dHash near-duplicate dedup (Hamming ≤ 8 vs the last *kept* frame) → reuse `classify_frame_state` gate.** `select_frames` returns metadata only (`SelectedFrame`: index, timestamp, state, dHash); `iter_selected_frames` streams pixels in constant memory.
+
+**Why dHash over pHash:** both are research-endorsed (RESEARCH.md frame-selection entry). dHash needs no DCT (cv2+numpy only — no new `imagehash` dep), and encoding the *sign* of the horizontal brightness gradient makes it robust to the global brightness/contrast shifts (fades, tooltip dimming) between near-identical game frames while still flipping bits on real structure change. One-constant re-tune on an art swap.
+
+**Why dedup BEFORE the gate, vs the last *kept* frame:** dedup-first means a long idle-board run costs one gate call; comparing to the last kept hash (not the immediate predecessor) collapses slow-drift runs into one keeper. Non-board frames still advance the dedup anchor so a modal→board transition isn't masked.
+
+**Constraints honored:** never opened the sample videos (tests use a tiny synthetic `cv2.VideoWriter` clip + the already-extracted PNGs + numpy arrays); fps read from media (OpenCV → ffprobe → documented fallback, surfaced via `fps_source`); resolution read from media; `stride = round(media_fps / target_fps)`, never assumes 30.
+
+**Did NOT promote a `utils/` CLI runner:** nothing depends on one yet (Rule 1's promotion trigger isn't met) and the old `03_sample_frames.py` does *uniform* sampling — a different job. The module is importable; a batch CLI can graduate when a consumer appears.
+
+**Result:** 81 → **110 tests** (+29 synthetic), ~24 s, no regressions. (Dev-only PySceneDetect segmentation, the other Stage 0 item, remains intentionally deferred per the research's dev-only reservation.)
+
 ## 2026-06-22 — Embedding fine-tune (round 1): fixed the collapse; adopted as default with a margin gate
 
 **Context:** The shipped embedder was a *frozen* ImageNet MobileNetV3-Small. On our 43 stylised card-characters its features collapsed (inter-prototype cosine 0.65–0.94), so embedding-NN over-identified and did not beat the conservative classical matcher. The prior handoff left two open decisions: do a fine-tuning round, and whether to flip the default identifier. This session resolved both.

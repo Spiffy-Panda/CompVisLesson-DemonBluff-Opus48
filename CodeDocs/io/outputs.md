@@ -4,6 +4,7 @@ Update this whenever a produced format changes (Rule 3).
 
 | Output | Location | Format | Notes |
 |--------|----------|--------|-------|
+| Stage 0 selected-frame records | in-memory (list / stream) | `SelectedFrame` NamedTuples | **Dev/batch selector output, NOT a REST response.** Produced by `frame_select.select_frames()` (returns `list[SelectedFrame]`) and `frame_select.iter_selected_frames()` (streams `(SelectedFrame, bgr)`). Kept-frame metadata only. See schema below and `CodeDocs/sources/dbcv/frame_select.md`. |
 | Selected frames | `dataset/frames/` (gitignored) | PNG image files | Chosen frames with provenance encoded in the filename (`<Set>_<NNN>_t<SSSSS>s.png`). |
 | Card crops | in-memory only (slice) | numpy array (HxWxC, BGR) | Localized card regions in pixel coordinates, derived from relative boxes. |
 | Game-state snapshot | in-memory / HTTP response | JSON (`GameStateSnapshot`) | The structured board read per frame.  See schema below.  Version: **0.2.0**. |
@@ -64,6 +65,27 @@ number is **not** comparable across the two identifiers (different quantities).
 **Invariant introduced in 0.2.0:** when `frame_state` is `"modal"` or
 `"menu"`, `cards` is always `[]`.  The localizer is intentionally skipped
 for non-board frames to prevent false detections.
+
+---
+
+## SelectedFrame — Stage 0 selector record (dev/batch only)
+
+Implemented in `src/dbcv/frame_select.py` as a `NamedTuple`. This is the
+**output of the offline frame-selection cascade**, not a wire format and not a
+REST response — it never travels over HTTP. `select_frames()` returns a
+`list[SelectedFrame]` (metadata only, no pixels); `iter_selected_frames()`
+streams `(SelectedFrame, bgr)` pairs when the kept image is also needed.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `frame_index` | `int` | 0-based index into the decoded stream |
+| `timestamp_s` | `float` | Presentation timestamp = `frame_index / media_fps` (fps read from the media, never assumed) |
+| `state` | `"board" \| "modal" \| "menu"` | Result of reusing `classify_frame_state` as the gate |
+| `dhash` | `int` | 64-bit difference hash of the kept frame (used for near-duplicate dedup) |
+
+Pixels are intentionally **not** stored on the record so a whole-video pass
+stays cheap in memory. See `CodeDocs/sources/dbcv/frame_select.md` for the
+cascade and tuning constants.
 
 ---
 

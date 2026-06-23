@@ -13,6 +13,7 @@ The map of `src/`. Read this and `CodeDocs/00_PROJECT.md` **before** opening any
 
 **Stages 0–2 (classical + fine-tuned embedding-NN) + REST + CLI landed 2026-06-22.** (Stage 3 = OCR, not built yet.)
 `src/dbcv/` now contains the full package through Stage 2 identification:
+- Stage 0 (frame selection — dev/batch): `frame_select.py` (stride-decode + dHash dedup → reuses the gate)
 - Stage 0 (frame-state gate): `frame_state.py`
 - Stage 1 (classical localizer): `localize.py`
 - Stage 2 (identification): classical baseline — `gallery.py` + `identify.py` (`classify_crop`);
@@ -23,12 +24,13 @@ The map of `src/`. Read this and `CodeDocs/00_PROJECT.md` **before** opening any
 - Dev model tools (require torch): `utils/python/finetune_embedding.py` (generates the served
   fine-tuned model) and `utils/python/export_backbone.py` (generates the frozen baseline)
 
-**81 tests pass** (60 original + 21 new embedding tests). Suite runtime **~23 s** (was ~295 s —
-fixed 2026-06-22 via process-level memoization of `build_gallery`, `OnnxEmbedder`, and
-`build_embedding_gallery`; see DEV-LOG entry 2026-06-22 for rationale).
+**110 tests pass** (81 prior + 29 new Stage 0 frame-selection tests). Suite runtime **~25 s**
+(the embedding suite was made fast 2026-06-22 via process-level memoization of `build_gallery`,
+`OnnxEmbedder`, and `build_embedding_gallery`; see DEV-LOG entry 2026-06-22 for rationale).
 
 Source overviews live under `CodeDocs/sources/dbcv/`:
 - [`schema.md`](sources/dbcv/schema.md) — Pydantic v2 models (`GameStateSnapshot`, etc.)
+- [`frame_select.md`](sources/dbcv/frame_select.md) — Stage 0 frame selector (dev/batch: stride-decode + dHash dedup → gate; `select_frames`/`iter_selected_frames`)
 - [`frame_state.md`](sources/dbcv/frame_state.md) — Stage 0 frame-state gate (`classify_frame_state`)
 - [`localize.md`](sources/dbcv/localize.md) — localizer interface + classical implementation
 - [`gallery.md`](sources/dbcv/gallery.md) — classical gallery + embedding gallery (Stage 2)
