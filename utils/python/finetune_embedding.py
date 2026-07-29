@@ -34,7 +34,7 @@ DESIGN CHOICES (so the ONNX contract never moves)
   * The honest, leak-proof verdict is the **inter-prototype cosine on CLEAN
     references** before vs after (uses zero augmentation), reported alongside a
     synthetic top-1 retrieval sanity check.  Real-frame generalisation is judged
-    separately by 09_embed_eval.py --onnx <this file's output>.
+    separately by utils/python/embed_eval.py --onnx <this file's output>.
 
 DEV-ONLY — imports torch/torchvision.  The runtime (src/dbcv/) stays torch-free;
 this only regenerates the gitignored models/*.onnx artifact.
@@ -54,7 +54,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# --- Path anchoring: scrap_scripts/python/10_*.py -> parents[2] = repo root ----
+# --- Path anchoring: utils/python/*.py -> parents[2] = repo root ----
 _HERE = Path(__file__).resolve()
 _REPO_ROOT = _HERE.parents[2]
 _ART_ROOT = _REPO_ROOT / "knowledge-base" / "card-art"
@@ -288,7 +288,7 @@ def synthetic_top1(model: nn.Module, per_class_bgr: list[list[np.ndarray]],
     """Augment each class `views` times, match vs clean protos -> (top1, mean-margin).
 
     Synthetic (optimistic) — measures augmentation robustness, not new-pose
-    generalisation.  The real check is 09_embed_eval.py on actual frames.
+    generalisation.  The real check is utils/python/embed_eval.py on actual frames.
     """
     was_training = model.training
     model.eval()
@@ -443,7 +443,7 @@ def main() -> None:
     print(f"\n  Synthetic top-1 retrieval (augmented->clean proto):")
     print(f"  FROZEN : {frozen_top1*100:5.1f}%   margin {frozen_margin:.3f}")
     print(f"  FT     : {ft_top1*100:5.1f}%   margin {ft_margin:.3f}")
-    print("\n  (Synthetic = optimistic; real-frame check: 09_embed_eval.py --onnx <out>)")
+    print("\n  (Synthetic = optimistic; real-frame check: utils/python/embed_eval.py --onnx <out>)")
 
     # --- Export to ONNX (CPU) + parity, save weights + results -----------
     _MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -477,7 +477,7 @@ def main() -> None:
         fh.write(f"FT     synth top1={ft_top1*100:.1f}% margin={ft_margin:.3f}\n")
         fh.write(f"onnx={out_onnx.name} torch<->onnx max_abs_diff={max_diff:.2e}\n")
     print(f"Wrote results: {results}")
-    print("\nDone. Next: .venv\\Scripts\\python.exe scrap_scripts\\python\\09_embed_eval.py "
+    print("\nDone. Next: .venv\\Scripts\\python.exe utils\\python\\embed_eval.py "
           f"--onnx {out_onnx}")
 
 

@@ -35,6 +35,18 @@ The course is the product. The pipeline is the worked example the course is buil
 - **Card art may be swapped** for an alternate set, so card recognition must be cheap to retrain.
 - **Two scratch tiers:** throwaway code in `scrap_scripts/<lang>/`, promoted tooling in `utils/<lang>/` (cataloged). No inline `python -c`-style interpreter calls — see Rule 1 in [CLAUDE.md](CLAUDE.md).
 
+## Fresh-machine bootstrap
+
+Everything heavy is gitignored and regenerable; a clone needs these steps to become a working dev box:
+
+1. **Python 3.12** + venv: `python -m venv .venv`, then `.venv/Scripts/pip install -r requirements.txt` (torch pins are `+cu118` CUDA builds; on a CPU-only box install the matching CPU wheels instead).
+2. **ffmpeg/ffprobe on PATH** (frame extraction + media probing fall back to OpenCV, but ffprobe gives authoritative fps).
+3. **Card-art gallery** (gitignored): `.venv/Scripts/python.exe utils/python/wiki_harvest.py` — fetch-once harvest of the wiki roster pages + card art into `knowledge-base/`. Without it the gallery build, the REST server, and part of the test suite have nothing to load.
+4. **Served model** (gitignored): either copy `models/*.onnx`/`*.pt` from the old machine, or regenerate with `.venv/Scripts/python.exe utils/python/finetune_embedding.py` (needs torch + a GPU; ~minutes on a Titan Xp-class card; seeded, so results reproduce). Missing model = REST falls back to the classical identifier; `tests/test_embed.py` skips.
+5. **Footage** (gitignored): place capture files in `dataset/raw-video/`. The two v0.389-era samples stay on the old machine unless copied; new current-version capture supersedes them for wave 2 (see `DEV-LOG.md` 2026-07-29 on footage-version drift).
+6. **Machine-local file:** create a fresh gitignored `CLAUDE.local.md` (Rule 7 — machine paths, tooling locations, identity rules; never committed).
+7. Verify: `.venv/Scripts/python.exe -m pytest tests/ -q` → expect all green (or embed-tests skipped if step 4 was deferred).
+
 ## Web surface
 
 - **Live (GitHub Pages):** <https://spiffy-panda.github.io/CompVisLesson-DemonBluff-Opus48/> — auto-deployed from `site/` by [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) on push to `main`.

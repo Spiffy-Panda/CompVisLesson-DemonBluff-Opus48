@@ -16,7 +16,15 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
-## 2026-07-29 — Roster re-verified; "Counsellor" resolves into a footage-version finding
+## 2026-07-29 — Migration prep: promoted the two load-bearing scrap scripts; fresh-machine bootstrap doc
+
+**Context:** Development moves to a machine set up to capture *current-version* gameplay (the sample footage is v0.389-era — see the footage-version-drift entry below). `scrap_scripts/` is gitignored wholesale, so anything in it dies with this machine.
+
+**Choice:** Promoted the two scrap scripts that tracked content actually depends on — `01_wiki_harvest.py` → `utils/python/wiki_harvest.py` (regenerates the gitignored card-art gallery + tracked manifest; a fresh clone cannot build the gallery, serve, or fully test without it) and `09_embed_eval.py` → `utils/python/embed_eval.py` (`finetune_embedding.py`'s own output text directs users to it). Updated all tracked references; cataloged both in `utils/README.md`. Added a **Fresh-machine bootstrap** section to `README.md` (venv → ffmpeg → harvest → model regen-or-copy → footage → CLAUDE.local.md → pytest).
+
+**Why:** Rule 1's promotion trigger was already met in both cases (regenerates tracked content; depended on by a tracked script); migration just made the latent violation visible.
+
+**Notes / risks:** (1) The remaining 17 scrap scripts stay gitignored and will NOT survive the machine switch — reviewed as genuinely throwaway probes/spikes; the mined `dataset/crops/` (6,202 crops) also stays behind but is deprecated with the old footage anyway (regenerable from the tool + videos if ever needed). (2) The served `models/*.onnx` are gitignored — copy them to the new machine or regenerate (seeded). (3) New-footage capture should record the game build version at capture time — wave-2 labeling now requires art-set version per crop (see below).
 
 **Context:** Wave 1 closed with a flagged roster desync — claim bubbles referencing a role `Counsellor` absent from `ROSTER.md`. Re-checked the live wiki to confirm the 44-role roster and settle the flag.
 
