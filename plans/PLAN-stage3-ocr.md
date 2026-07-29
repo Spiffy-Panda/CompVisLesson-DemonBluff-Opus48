@@ -17,7 +17,8 @@
 - [ ] *(new, wave 2)* Plate-crop padding: the Stage-1 bbox sometimes clips the name plate (e.g. Scout card, `Sample1_003` JSON, h=0.14 vs typical ~0.17) — pad the read region below the bbox before cropping
 - [ ] *(new, wave 2)* Bubble / tooltip region detection (near-white rounded-rect and dark-navy panel locate) to feed the fallback OCR — these are free-form and cannot be fixed-position
 - [ ] *(new, wave 2)* Font validation against real mined crops once `dataset/crops/` lands (round-2 mining, in flight): render candidate fonts side-by-side vs mined plates, then lock the renderer font
-- [ ] *(new, flag)* **Roster gap:** claim bubbles reference a role "Counsellor" that is absent from `knowledge-base/wiki/townees/ROSTER.md` — flag to the knowledge-base owner (do not silently add). If Counsellor can appear *on a card*, the name vocabulary has a hole; the abstain→fallback path covers it meanwhile.
+- [x] *(flag, resolved)* **Roster gap "Counsellor":** not a missing role — it is the **pre-v0.390a name of `Chancellor`** (renamed 2025-10-28, wiki verified 2026-07-29). The sample footage predates that patch, so it renders the old string. **Vocabulary action (wave 2):** add `COUNSELLOR` as a 45th name string aliased to `Chancellor`; it *can* appear on a card plate in our footage. See `knowledge-base/wiki/townees/ROSTER.md` § Footage-version drift.
+- [ ] *(new, wave 2)* **Footage-version drift, general:** the videos are ≤ v0.389 (Oct 2025); current wiki is v0.762a. `Rambler` (v0.610) and `Investigator` (v0.760e) **cannot appear** in our footage, and v0.730 overhauled character-type/alignment icons — do not assume mined crops match current wiki art or current UI chrome.
 
 ---
 
@@ -51,7 +52,7 @@ Conventions: **card-relative** regions are fractions of a card `bbox_rel` (Stage
 | 10 | Modal titles + verdicts | centered, y ≈ [0.13, 0.20] (`CURRENT DECK`, `NEW CHARACTERS UNLOCKED`); centered panel for `Village is safe!` / `All Evil characters have been executed!` | large white/green caps or mixed case | **CV** (small fixed phrase set); unseen titles → FB |
 | 11 | Deck-composition line | centered, y ≈ [0.215, 0.25], modal only | `Villagers 5, Outcasts 1, Minions 2, Demons 1` — colour-coded class words + digits | **CV** |
 | 12 | Buttons | bottom-center, y ≈ [0.86, 0.95] (`Next`, `Close`); `More info` label near tooltips | white rounded sans on red/dark plate | **CV** (fixed words) |
-| 13 | **Claim bubbles** | white rounded-rects adjacent to cards — locate by near-white fill + rounded contour, not position | dark rounded sans, mixed case, multi-line, **free-form** ("#2 is Good", "Baa is 2 cards away from closest Evil", "I am the original Baker", "#9 could be: Lilis"); mention roles incl. off-roster ("Counsellor") | **FB** (flagship fallback surface) |
+| 13 | **Claim bubbles** | white rounded-rects adjacent to cards — locate by near-white fill + rounded contour, not position | dark rounded sans, mixed case, multi-line, **free-form** ("#2 is Good", "Baa is 2 cards away from closest Evil", "I am the original Baker", "#9 could be: Lilis"); mention roles incl. the legacy name "Counsellor" (= `Chancellor` pre-v0.390a) | **FB** (flagship fallback surface) |
 | 14 | Ability tooltips + class tags | dark-navy panels near hovered card; small tag plates below (`Villager`/`Good`, `Minion`/`Evil`) | free-form sentence text with colour-coded keywords; tags are fixed words | panels → **FB**; tags → **CV** |
 
 Out of scope entirely: streamer watermark script signature bottom-center (third-party overlay — never read, never emit), "Barely a scratch!" transient combat text (FB-able but zero game-state value), mark-legend keybind text (static config UI).
@@ -104,6 +105,6 @@ Alchemist · Architect · Baker · Bard · Bishop · Confessor · Dreamer · Dru
 2. **`<Corrupted>` two-line plate variant** shrinks the role name and adds a literal angle-bracketed state token — the plan's original "name plate" surface was really two layouts.
 3. **Chevron badges carry no text** — they are player-placed marks (keybind legend confirms), so the "counts/numbers on cards" hypothesis is dead: *all* on-card text is the plate + the slot number above.
 4. **Bare-stem `1` / `O`-like `0`** make a general OCR structurally error-prone here; closed vocab + label grammar absorbs it.
-5. **Off-roster role name in bubbles ("Counsellor")** — flagged, not fixed (checklist).
+5. **"Counsellor" is a version artifact, not a missing role** (resolved 2026-07-29) — it is `Chancellor`'s pre-v0.390a name. The find is that **the dataset is pinned to an old build** (≤ v0.389, Oct 2025) while our reference art and wiki are v0.762a. A text surface can therefore date the footage — and a name-vocabulary built from the *current* roster would silently miss a string that is on real cards.
 6. **Two HUD modes** for the left counter stack (in-round vs meta) with different label sets.
 7. Face-down cards have **no plate at all** — Stage 4 must not treat "no text read" as a failed read on face-down slots.

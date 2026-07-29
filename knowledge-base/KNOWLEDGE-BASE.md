@@ -27,8 +27,8 @@ Agent-facing spec for `knowledge-base/`. Tells you how the cached game knowledge
 | Area | Status |
 |------|--------|
 | `wiki/_raw_cache/<class>/` | **44 role pages cached** (25 villager, 9 minion, 7 outcast, 3 demon) via `scrap_scripts/python/01_wiki_harvest.py` (2026-06-21) |
-| `wiki/_raw_cache/knowledge/` | 26 mechanics pages cached (Gameplay 6, Relics 8, Unused Roles 12) |
-| `wiki/townees/ROSTER.md` | **transcribed** — transformative roster of all 44 roles by class |
+| `wiki/_raw_cache/knowledge/` | 27 mechanics pages cached (Gameplay 6, Relics 8, Unused Roles 13) — `Delusion` added on the 2026-07-29 re-harvest |
+| `wiki/townees/ROSTER.md` | **transcribed** — transformative roster of all 44 roles by class. **Re-verified against the wiki 2026-07-29: unchanged, 44/44.** Carries the *Footage-version drift* section — the dataset is ≤ v0.389 while the wiki is v0.762a; read it before building any recognizer or name vocabulary |
 | `wiki/harvest-manifest.json` | tracked manifest: class → role → cache path + art files (67 art files total) |
 | `card-art/<class>/<role>/` | **downloaded** (gitignored) — 67 art files; reference gallery, versioned per art set |
 | `lessons/cv-project-playbook.md` | seeded during bootstrap; appended over time |

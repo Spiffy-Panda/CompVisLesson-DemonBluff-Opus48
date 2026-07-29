@@ -11,6 +11,8 @@
 - [ ] Labeling pass (wave 2) — fill the `label: null` field in `dataset/crops/manifest.jsonl`
 - [ ] Margin-threshold calibration from labels (wave 2)
 - [ ] Face-down crop inventory (wave 2)
+- [ ] *(new, wave 2 — from the 2026-07-29 roster check)* **Art-set version is a per-crop attribute.** The footage is **≤ v0.389 (Oct 2025)**; `card-art/` is v0.762a. Record the art-set version on every crop and every reference image, and never pool two sets silently. Concrete checks this enables: (a) any crop labeled `Rambler` or `Investigator` is a **known-bad read** — those roles postdate the footage, so they are free negatives for identifier evaluation; (b) `Chancellor` appears in-footage as **`COUNSELLOR`**; (c) confirm the two sample videos are from the *same* build before pooling their crops. Rationale in `knowledge-base/wiki/townees/ROSTER.md` § Footage-version drift.
+- [ ] *(new, wave 2)* Re-examine the **44% both-confident agreement** result against art drift — the wiki gallery is a *current*-art prior applied to old-art cards, so some disagreement may be version skew rather than identifier weakness. Separate the two before drawing lesson-plan conclusions.
 
 ## Wave-1 run record (2026-07-29, full pass, defaults: target_fps=1.5, hamming≤8, board-only)
 

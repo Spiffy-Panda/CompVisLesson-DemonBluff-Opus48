@@ -419,6 +419,10 @@
         "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Bounty_Hunter.json"
       },
       {
+        "title": "Delusion",
+        "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Delusion.json"
+      },
+      {
         "title": "Marionette",
         "cache": "knowledge-base\\wiki\\_raw_cache\\knowledge\\Unused_Roles\\Marionette.json"
       },

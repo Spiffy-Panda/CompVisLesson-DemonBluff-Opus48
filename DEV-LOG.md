@@ -16,6 +16,18 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-07-29 — Roster re-verified; "Counsellor" resolves into a footage-version finding
+
+**Context:** Wave 1 closed with a flagged roster desync — claim bubbles referencing a role `Counsellor` absent from `ROSTER.md`. Re-checked the live wiki to confirm the 44-role roster and settle the flag.
+
+**Roster check:** all four role categories re-queried via the MediaWiki API. **Identical to the 2026-06-21 harvest — 25/9/7/3 = 44, no additions, removals, or renames.** Re-ran `scrap_scripts/python/01_wiki_harvest.py` (fetch-once, skips cached); it pulled exactly one new page, `Delusion`, an unimplemented evil role in `Unused Roles` (12 → 13). Manifest updated; art count unchanged at 67.
+
+**The actual finding — `Counsellor` is not a missing role, it is a date stamp.** It is `Chancellor`'s pre-**v0.390a** name (renamed 2025-10-28). That pins the `dataset/` footage to **≤ v0.389, Oct 2025**, while the wiki and our harvested `card-art/` are **v0.762a (2026-07-14)** — a ~9-month gap we had been implicitly assuming away. Consequences now written into `ROSTER.md` § *Footage-version drift*: (1) the Stage-3 name vocabulary needs a **45th string `COUNSELLOR → Chancellor`**, else every Chancellor plate in the dataset abstains; (2) **`Rambler` (v0.610) and `Investigator` (v0.760e) cannot appear in our footage** — footage roster is effectively **42 roles**, and any mined crop identified as one is a known-bad read, i.e. a free negative check on the round-2 identifiers; (3) **v0.730** replaced the character-type/alignment icons, so footage UI chrome ≠ current chrome; (4) Halloween/Christmas **skins** already shipped for 7 villagers — the "card art can change" constraint is documented history, not a hypothetical.
+
+**Why it matters beyond the fix:** the reference gallery in `card-art/` is the *current* art set and is therefore only a **weak prior** for footage-era cards. This is a plausible contributor to the round-2 mining result that only 44% of both-confident crops agreed — worth testing in wave 2 before attributing it all to identifier weakness.
+
+**Notes / risks:** (1) Wave-2 labeling must record the **art-set version** per crop; a single dataset spanning two art sets, silently mixed, would poison the embedding gallery. (2) Not yet checked whether the two sample videos are from the *same* build as each other — verify before pooling their crops. (3) `PLAN-stage3-ocr.md` flag closed; a new wave-2 item covers general version drift. (4) No cross-check yet that pre-v0.390a art for the 42 in-footage roles is obtainable at all — if not, the recognizer must be fit from mined crops rather than wiki art.
+
 ## 2026-07-29 — Wave 1 of the restart roadmap: round-2 mining run, Stage-4 decision, Stage-3 spec
 
 **Context:** After the audit resync, three parallel agents developed the next roadmap steps: round-2 dataset mining, the Stage-4 temporal design decision, and the Stage-3 OCR spec. Three new plan slugs created (`PLAN-round2-dataset`, `PLAN-stage3-ocr`, `PLAN-temporal-assembly`).
