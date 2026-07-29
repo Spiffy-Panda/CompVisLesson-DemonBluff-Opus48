@@ -16,6 +16,24 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-07-29 — Live capture + input stack validated end-to-end; first live frame collection
+
+**Context:** Everything so far has run against the two recorded sample videos. Touching the *live, running* game needs its own capture and input path, validated before anything gets built on top of it.
+
+**Choice:** **Windows Graphics Capture** (`windows-capture` 2.0.0, window-targeted, BGRA frames) over `DXcam`/DXGI (desktop-composited — breaks under occlusion, not a window API) or `mss`/GDI `BitBlt` (CPU-bound, unreliable against DirectX-rendered surfaces) — OBS's virtual camera works but is a heavy external dependency plus an extra encode hop, kept as a lesson-only mention. **`pydirectinput` 1.0.4** (`SendInput` + scan codes) over `pyautogui` (drives the legacy `mouse_event` API, which many DirectX games — including this one, per the discipline of actually checking — ignore).
+
+**Why:** Both choices trace to a documented capability gap, not a hunch — new `research/RESEARCH.md` entry (2026-07-29) with the primary sources plus this session's own empirical measurement.
+
+**Empirical validation (this machine, Windows 11, game v0.762b, Unity IL2CPP, Steam appid 3803820, launch options `-popupwindow -screen-fullscreen 0`):** WGC captured the windowed game at 1346×879 @ ~55–57 FPS. Synthetic `SendInput` clicks **are accepted** by this Unity build — verified via before/after frame diffs across a real menu transition (menu → Pick Game Mode). Launching via `steam://rungameid/3803820` + window polling works. Capture **survives a minimized RDP client session**.
+
+**First live frame collection:** a 48-frame session (38 clean / 10 tutorial-tagged) captured 7 distinct roles (Gemcrafter, Lover, Confessor, Hunter, Enlightened, Medium, Minion), at `scrap_scripts/python/out/collect_01/` with an `actions.md` inventory.
+
+**Honest caveats (open risks for whoever builds on this next):** `-popupwindow` did **not** strip the window chrome — frames include the OS title bar, so client-area cropping needs a **live** `GetClientRect`, never cached. Title-substring window matching is unsafe (a File Explorer window browsing the game's install folder matched "Demon Bluff") — must also verify the owning process is `Demon Bluff.exe`. A minimized (not just occluded) game window gives stale WGC frames. The in-game Brightness slider is an untested domain-shift risk — all frames so far are default-brightness. Card hit-boxes extend beyond visible art; the bottom-right action-icon row isn't positionally stable across game states. A full RDP disconnect (vs. staying minimized/backgrounded) locks the session and breaks both capture and input. DPI: the process must call `SetProcessDpiAwareness(2)` before capture/click; `pydirectinput` was used standalone (no `pyautogui` import) partly because some of PyAutoGUI's own deps call the older `SetProcessDpiAware()` on import.
+
+**Not yet promoted:** exploration scripts stay in gitignored `scrap_scripts/python/` (`01` capture test, `02` click test, `03` launcher, `04` single-frame grab, `05` frame-space click) — candidates for `utils/` promotion under a future `PLAN-live-capture` once something depends on them (Rule 1's promotion trigger isn't met yet).
+
+**Housekeeping:** added `_drop-off/` to `.gitignore` — a staging folder for files being migrated in from another machine, not yet triaged into a real tier.
+
 ## 2026-07-29 — Migration prep: promoted the two load-bearing scrap scripts; fresh-machine bootstrap doc
 
 **Context:** Development moves to a machine set up to capture *current-version* gameplay (the sample footage is v0.389-era — see the footage-version-drift entry below). `scrap_scripts/` is gitignored wholesale, so anything in it dies with this machine.

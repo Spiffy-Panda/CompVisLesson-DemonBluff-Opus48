@@ -1,6 +1,9 @@
 # --- machine-local & identity (Rule 7) -------------------------------------
 CLAUDE.local.md
 
+# --- incoming file migration staging (not yet triaged into a real tier) ----
+_drop-off/
+
 # --- throwaway scripts (Rule 1) --------------------------------------------
 scrap_scripts/
 
