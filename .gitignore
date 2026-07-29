@@ -20,6 +20,8 @@ dataset/**/*.npz
 !dataset/**/.gitkeep
 # generated pipeline output (overlays + snapshot JSON) — regenerable, never tracked
 dataset/pipeline-out/
+# mined card-crop dataset (PNGs + manifest.jsonl) — regenerable via utils/python/mine_card_crops.py
+dataset/crops/
 
 # --- third-party reference inputs, bulk/verbatim (Rule 6) ------------------
 # Card art and raw wiki caches are reference inputs for the pipeline, not

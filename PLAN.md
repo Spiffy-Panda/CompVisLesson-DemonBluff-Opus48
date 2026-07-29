@@ -5,6 +5,9 @@ Index of per-slug plan files in `plans/PLAN-<slug>.md`. One line per entry. This
 ## Active
 
 - [PLAN-pipeline](plans/PLAN-pipeline.md) — video → game state → REST, in 6 stages; Stages 0–2 + REST serving shipped (110 tests green), remaining: Stage 3 OCR + Stage 4 assembly — see the slug file.
+- [PLAN-round2-dataset](plans/PLAN-round2-dataset.md) — mine + label real board crops from the sample videos; feeds margin calibration, face-down measurement, fine-tune round 2, and OCR validation.
+- [PLAN-stage3-ocr](plans/PLAN-stage3-ocr.md) — closed-vocab on-card/HUD text reading: region catalog, vocabulary, rendered training set, tiny recognizer + mobile-OCR fallback.
+- [PLAN-temporal-assembly](plans/PLAN-temporal-assembly.md) — Stage 4 design: temporal depth + REST contract options (research → decision memo → implementation).
 
 ## Completed
 

@@ -10,6 +10,7 @@ Update this whenever a produced format changes (Rule 3).
 | Game-state snapshot | in-memory / HTTP response | JSON (`GameStateSnapshot`) | The structured board read per frame.  See schema below.  Version: **0.2.0**. |
 | REST response | `POST /v1/snapshot` | JSON | Snapshot returned over HTTP.  Shape is identical to the game-state schema. |
 | Batch pipeline output | `dataset/pipeline-out/` (gitignored, regenerable) | JSON + PNG pairs | Produced by `utils/python/run_pipeline.py` over already-selected frames: per frame a `<Sample>_<NNN>_t<SSSSS>s.json` (`GameStateSnapshot`, same schema as the REST response) plus, with `--overlay`, a `<same stem>_overlay.png` annotated visual overlay. Dev/debug artifacts only — never served. |
+| Mined card-crop dataset | `dataset/crops/` (gitignored, regenerable) | PNG crops + JSONL manifest | Produced by `utils/python/mine_card_crops.py` (dev/batch, never on the REST path). Crop PNGs at `dataset/crops/<Sample>/<Sample>_<NNNNNN>_t<SSSSS.S>s_s<NN>.png` (frame index + timestamp + slot); `dataset/crops/manifest.jsonl` has one JSON object per crop: `video`, `frame_index`, `timestamp_s`, `slot`, `bbox_rel`, `crop_path` (repo-relative), `classical {identity, role_class, confidence}`, `embedding {identity, role_class, margin, abstained}`, `agreement` (identity strings equal), and `label: null` reserved for the wave-2 labeling pass. Input to round-2 margin calibration + fine-tune. |
 
 ---
 

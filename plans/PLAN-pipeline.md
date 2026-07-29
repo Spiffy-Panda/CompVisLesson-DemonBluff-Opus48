@@ -55,7 +55,7 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 ## Cross-cutting
 - [x] Repo-local `.venv` + pinned `requirements.txt` (2026-06-22). Standard interpreter for all scripts/agents: `.venv/Scripts/python.exe`.
 - [x] Author the env-management lesson module: **venv vs uv vs conda vs pip** *(2026-06-22 — `Lesson-Plan/modules/00_python-environments.md`; cited by new `research/RESEARCH.md` env entry)*.
-- [ ] Resolve open question: temporal logic depth. *(Course delivery stack settled in practice — static `site/` + GitHub Pages auto-deploy; recorded in `PROJECT-PITCH.md` 2026-07-28. `Minion`/`Twin Minion` → one recognition class; `Puppet` is `Puppeteer`-created — see [ROSTER](../knowledge-base/wiki/townees/ROSTER.md).)*
+- [x] Resolve open question: temporal logic depth. *(Resolved 2026-07-28 — stateless windowed fusion (`POST /v1/snapshot/window`) + margin-weighted recency-decayed per-slot vote; decision delegated to the course by the user; rationale in `plans/PLAN-temporal-assembly.md` (→ module 07) and the PROJECT-PITCH decisions row. Course delivery stack settled in practice — static `site/` + GitHub Pages auto-deploy; recorded in `PROJECT-PITCH.md` 2026-07-28. `Minion`/`Twin Minion` → one recognition class; `Puppet` is `Puppeteer`-created — see [ROSTER](../knowledge-base/wiki/townees/ROSTER.md).)*
 
 ### Standing invariants (never "done" — apply to every stage)
 - Keep every runtime model ≤~30 M params / ≤~100 MB; foundation models dev-only.
