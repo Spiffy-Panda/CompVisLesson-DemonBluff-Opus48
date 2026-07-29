@@ -44,5 +44,6 @@ onnxruntime==1.27.0                 # runtime: serve the small backbone on CPU (
 #     .venv/Scripts/python.exe -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 # CPU-only alternative (smaller, no GPU): pip install torch torchvision   # default PyPI build
 #
-# Still deferred:
-#   imagehash        — Stage 0 perceptual-hash dedup (or implement dHash in numpy)
+# Permanently avoided:
+#   imagehash        — Stage 0 perceptual-hash dedup is a pure-numpy dHash in
+#                      src/dbcv/frame_select.py, so this dependency is never needed.

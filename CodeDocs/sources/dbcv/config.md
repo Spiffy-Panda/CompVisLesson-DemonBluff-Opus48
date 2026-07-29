@@ -14,14 +14,14 @@ a `.env` file.  No resolution is baked in.
 
 ## Key signatures (with line numbers)
 
-### `_REPO_ROOT` — line 37
+### `_REPO_ROOT` — line 41
 ```python
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 # parents[0] = src/dbcv, parents[1] = src, parents[2] = repo root
 ```
 Anchored to the repo root per Rule 1 — never assumes CWD.
 
-### `class Settings(BaseSettings)` — line 47
+### `class Settings(BaseSettings)` — line 49
 ```python
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="DBCV_", ...)
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 - `DBCV_FRAMES_DIR` overrides `frames_dir`
 - `DBCV_CONFIDENCE_THRESHOLD` overrides `confidence_threshold`
 
-### `get_settings() -> Settings` — line 86
+### `get_settings() -> Settings` — line 101
 ```python
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

@@ -20,6 +20,8 @@ The course is the product. The pipeline is the worked example the course is buil
 | `site/` | The web surface — landing page + notes. Served locally and on GitHub Pages | [index.html](site/index.html) |
 | `src/` | The CV pipeline + REST service (code) | [CODE-DESIGN.md](CODE-DESIGN.md) |
 | `CodeDocs/` | Per-file code overviews — read before the code | [00_PROJECT.md](CodeDocs/00_PROJECT.md) |
+| `models/` | ONNX/weights artifacts (gitignored, regenerable) | [README](models/README.md) |
+| `tests/` | pytest suite for `src/dbcv/` (110 tests) | — |
 | `plans/` | Per-slug plan files | [PLAN.md](PLAN.md) |
 | `utils/` | Durable promoted tooling | [README](utils/README.md) |
 | `scrap_scripts/` | Throwaway exploration scripts (gitignored) | [README](scrap_scripts/README.md) |
@@ -40,4 +42,4 @@ The course is the product. The pipeline is the worked example the course is buil
 
 ## Status
 
-Bootstrapped + harvested + first research pass done; web surface live. The CV pipeline is not built yet — see [PLAN.md](PLAN.md) and [plans/PLAN-pipeline.md](plans/PLAN-pipeline.md).
+Stages 0–2 of the pipeline plus the REST service are shipped in `src/dbcv/` (frame selection, classical localization, identification via a fine-tuned embedding backbone with a classical fallback) — **110 tests green** (~27 s, re-verified 2026-07-28). Lesson plan is 8/10 modules authored. Remaining: Stage 3 on-card OCR, Stage 4 temporal assembly, lesson modules 06–07. Details in [plans/PLAN-pipeline.md](plans/PLAN-pipeline.md); index at [PLAN.md](PLAN.md).

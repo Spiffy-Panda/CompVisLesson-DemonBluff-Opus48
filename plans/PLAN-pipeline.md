@@ -13,7 +13,7 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 
 ## Open decisions & next steps (handoff, 2026-06-22)
 
-**Where it stands:** Stages 0, 1, 2 + the REST service + a CLI runner are shipped (classical/CPU, plus a **domain-fine-tuned** embedding backbone served via ONNX-CPU). **110 tests pass (~25 s).** `torch 2.7.1+cu118` + `onnxruntime` installed; GPU verified on the Titan Xp. The Stage-2 embedding fine-tune (round 1) is **done and adopted as the default identifier** (Proxy-Anchor LP-FT fixed the collapse: inter-prototype cosine 0.85 → 0.41; abstains on a top1−top2 margin). Authoritative history is in `DEV-LOG.md` (newest first); decisions in `PROJECT-PITCH.md`; lesson plan is **8/10 modules** authored.
+**Where it stands:** Stages 0, 1, 2 + the REST service + a CLI runner (`utils/python/run_pipeline.py` — the end-to-end offline runner, which wires the *classical* identifier; distinct from the Stage-0 frame-selection batch CLI, which was deliberately *not* promoted) are shipped (classical/CPU, plus a **domain-fine-tuned** embedding backbone served via ONNX-CPU). **110 tests pass (~25 s).** `torch 2.7.1+cu118` + `onnxruntime` installed; GPU verified on the Titan Xp. The Stage-2 embedding fine-tune (round 1) is **done and adopted as the default identifier** (Proxy-Anchor LP-FT fixed the collapse: inter-prototype cosine 0.85 → 0.41; abstains on a top1−top2 margin). Authoritative history is in `DEV-LOG.md` (newest first); decisions in `PROJECT-PITCH.md`; lesson plan is **8/10 modules** authored.
 
 **Both prior decisions are now resolved (2026-06-22):**
 1. **Default identifier — RESOLVED → fine-tuned embedding-NN + margin gate.** Round 1 fixed the collapse, so the served model is the fine-tuned backbone and `classify_crop_embedding` abstains on the **top1−top2 cosine margin** (`_EMBED_MARGIN_THRESHOLD = 0.12`, provisional) instead of an absolute cosine. Real-frame behaviour: 24% confident IDs, honest "unknown" on the rest; classical↔embedding agreement 27 → 90. See `DEV-LOG.md`.
@@ -32,7 +32,7 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 - [x] Derive card slots relative to landmarks; handle **variable card count** (8/9/10 seen).
 - [x] Output resolution-relative bboxes (`bbox_rel`, `CodeDocs/io/outputs.md`).
 
-## Stage 2 — Identification (embedding-NN gallery + OCR cross-check) — **both identifiers shipped**
+## Stage 2 — Identification — **both visual identifiers (classical + embedding) shipped; OCR cross-check awaits Stage 3**
 > **2026-06-22 (updated).** (1) **Classical** (`gallery.py` + `identify.py`): in-memory gallery (43 townees / 67 refs incl. skins), HSV-histogram + ORB; ~35% identify rate, honest "unknown" otherwise. (2) **Embedding-NN — now domain-fine-tuned + default** (`embed.py` + `identify.py`): MobileNetV3-Small → **ONNX → onnxruntime-CPU** (torch↔onnx parity ~5e-6; serving stays torch-free) → cosine-NN over a re-embeddable 576-d **prototypical** gallery, loaded once in `lifespan`. The original *frozen ImageNet* backbone collapsed the 43 characters (inter-prototype cosine 0.65–0.94) and over-identified; **round-1 Proxy-Anchor LP-FT fine-tuning fixed it** (cosine mean 0.85 → 0.41), and abstention switched to the **top1−top2 margin**. Served model = the fine-tuned backbone (`utils/python/finetune_embedding.py`); the frozen baseline (`export_backbone.py` → `_frozen.onnx`) is kept only for the head-to-head.
 - [x] Build the reference gallery from `knowledge-base/card-art/` *(in-memory; rebuild = the versioning story; used by both identifiers)*.
 - [x] Small embedding backbone → NN over gallery; prototypical mean per townee *(frozen ImageNet insufficient → **domain-fine-tuned, round 1, 2026-06-22**; adopted as default with a margin gate)*.
@@ -55,6 +55,8 @@ Stages are ordered, but each is also a **lesson-plan module** (`Lesson-Plan/LESS
 ## Cross-cutting
 - [x] Repo-local `.venv` + pinned `requirements.txt` (2026-06-22). Standard interpreter for all scripts/agents: `.venv/Scripts/python.exe`.
 - [x] Author the env-management lesson module: **venv vs uv vs conda vs pip** *(2026-06-22 — `Lesson-Plan/modules/00_python-environments.md`; cited by new `research/RESEARCH.md` env entry)*.
-- [ ] Keep every runtime model ≤~30 M params / ≤~100 MB; foundation models dev-only.
-- [ ] Every stage that adopts a technique cites its `research/RESEARCH.md` entry and gets a lesson module.
-- [ ] Resolve open questions: temporal logic depth; course delivery stack. (`Minion`/`Twin Minion` → one recognition class; `Puppet` is `Puppeteer`-created — see [ROSTER](../knowledge-base/wiki/townees/ROSTER.md).)
+- [ ] Resolve open question: temporal logic depth. *(Course delivery stack settled in practice — static `site/` + GitHub Pages auto-deploy; recorded in `PROJECT-PITCH.md` 2026-07-28. `Minion`/`Twin Minion` → one recognition class; `Puppet` is `Puppeteer`-created — see [ROSTER](../knowledge-base/wiki/townees/ROSTER.md).)*
+
+### Standing invariants (never "done" — apply to every stage)
+- Keep every runtime model ≤~30 M params / ≤~100 MB; foundation models dev-only.
+- Every stage that adopts a technique cites its `research/RESEARCH.md` entry and gets a lesson module.

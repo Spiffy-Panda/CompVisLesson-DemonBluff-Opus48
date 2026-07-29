@@ -6,22 +6,23 @@
 the classical implementation validated on real Demon Bluff sample frames.
 
 **Who uses it:**
-- `dbcv/pipeline.py` — imports `classical_localize` as the default `localizer`
-  argument, and imports `localize` as the named single-dispatch entry point
-- `dbcv/__init__.py` — re-exported in public-surface documentation
+- `dbcv/pipeline.py` — imports `BboxRel`, `LocalizerCallable`, and
+  `classical_localize` (the default `localizer` argument)
+- `dbcv/__init__.py` — listed in the public-surface docstring
+  (`classical_localize`, `stub_localize`)
 - `tests/test_api.py` — imports `classical_localize` directly for the unit test
 
 ---
 
 ## Key signatures (with line numbers)
 
-### Type alias `BboxRel` — line 62
+### Type alias `BboxRel` — line 74
 ```python
 BboxRel = tuple[float, float, float, float]
 # (x, y, w, h) in [0, 1], relative to frame width/height, origin top-left
 ```
 
-### `class LocalizerCallable(Protocol)` — line 72
+### `class LocalizerCallable(Protocol)` — line 83
 ```python
 class LocalizerCallable(Protocol):
     def __call__(
@@ -31,7 +32,7 @@ class LocalizerCallable(Protocol):
 Structural (Protocol) typing so any callable with this signature qualifies —
 no inheritance required.
 
-### `stub_localize(image, resolution) -> list[BboxRel]` — line ~110
+### `stub_localize(image, resolution) -> list[BboxRel]` — line 117
 ```python
 def stub_localize(image: np.ndarray, resolution: Resolution) -> list[BboxRel]:
 ```
@@ -49,7 +50,7 @@ delta between "no vision" and "real detection".  Pass explicitly as
 ]
 ```
 
-### `classical_localize(image, resolution) -> list[BboxRel]` — line ~150
+### `classical_localize(image, resolution) -> list[BboxRel]` — line 150
 ```python
 def classical_localize(image: np.ndarray, resolution: Resolution) -> list[BboxRel]:
 ```
@@ -75,13 +76,11 @@ sizes and contour-filter ratios are geometry-derived and art-independent.
 **Research grounding:** research/RESEARCH.md entry 2 (Card/region localization
 robust to art swaps — 2026-06-21).
 
-### `localize` — module-level alias (bottom of file)
-```python
-localize = classical_localize
-```
-Named dispatch entry point.  **Now points at `classical_localize`** (previously
-pointed at `stub_localize`).  Import `localize` for the current best-available
-implementation; import `stub_localize` explicitly to use the teaching baseline.
+### Removed: the `localize` module-level alias
+The former `localize = classical_localize` alias (bottom of file) was removed
+2026-07-28 — it had zero call sites.  Import `classical_localize` for the
+current best-available implementation; import `stub_localize` explicitly to
+use the teaching baseline.
 
 ---
 
@@ -95,11 +94,3 @@ implementation; import `stub_localize` explicitly to use the teaching baseline.
 | Art-swap safe? | N/A | Re-tune HSV (~15–30 min) |
 | CPU cost | < 0.1 ms | ~10 ms |
 | Use in production | No — teaching baseline only | Yes |
-
----
-
-## TODO (future work)
-
-- `classify_frame_state` (board-vs-modal gate): spiked but only 0/3 reliable on
-  modal frames at time of spike.  Held back pending more modal sample coverage.
-  See scrap_scripts/ for the spike.  This is Stage-0 work.

@@ -12,7 +12,7 @@
 
 ## Key signatures (with line numbers)
 
-### `assemble(source, resolution, boxes, identities) -> GameStateSnapshot` — line 33
+### `assemble(source, resolution, boxes, identities) -> GameStateSnapshot` — line 31
 ```python
 def assemble(
     source: Source,
@@ -27,7 +27,8 @@ def assemble(
 - `boxes` — relative bounding boxes from the localizer (parallel to `identities`)
 - `identities` — `(identity, role_class, confidence)` triples from identifier
 
-**Returns:** `GameStateSnapshot` with `schema_version="0.1.0"`.
+**Returns:** `GameStateSnapshot` with `schema_version="0.2.0"` (the schema
+default — `assemble` does not set it explicitly).
 
 **Raises:** `ValueError` if `len(boxes) != len(identities)` — indicates a
 pipeline logic error, should not be caught.
@@ -37,7 +38,7 @@ pipeline logic error, should not be caught.
 ## Design notes
 
 - `role_class` values outside the known set are normalised to `"unknown"` at
-  line 68 rather than raising — defensive against unexpected identifier output
+  line 76 rather than raising — defensive against unexpected identifier output
   during development.
 - `Readings` is constructed empty (`Readings()`) for every card in the slice;
   the OCR stage (Stage 3) will populate it.

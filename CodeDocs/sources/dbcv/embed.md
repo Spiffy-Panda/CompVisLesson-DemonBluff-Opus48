@@ -38,7 +38,7 @@ frozen-ImageNet baseline (`models/mobilenetv3_small_embed_frozen.onnx`), kept fo
 
 ## Key signatures
 
-### `get_onnx_embedder(onnx_path=None) -> OnnxEmbedder` — module-level factory (line ~103)
+### `get_onnx_embedder(onnx_path=None) -> OnnxEmbedder` — module-level factory (line 106)
 ```python
 def get_onnx_embedder(onnx_path: Path | str | None = None) -> OnnxEmbedder:
 ```
@@ -50,7 +50,7 @@ times in one process (test suite, server lifespan).  `api.py` lifespan uses this
 
 ---
 
-### `OnnxEmbedder` — class (line ~126)
+### `OnnxEmbedder` — class (line 129)
 
 ```python
 class OnnxEmbedder:

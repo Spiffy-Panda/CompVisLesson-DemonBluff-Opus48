@@ -21,7 +21,7 @@
     <ul class="pages">
       <li><a class="title" href="status.html">Project status &amp; handoff summary</a>
         <div class="desc">Where the pipeline + course actually stand, the honest results, and what's
-          next (snapshot, 2026-06-22). More substantial than these scratch notes.</div></li>
+          next (snapshot, 2026-07-28). More substantial than these scratch notes.</div></li>
       <li><a class="title" href="#plan-outline">Plan outline (rough)</a>
         <div class="desc">A loose sketch of the pipeline stages and the calls already made.</div></li>
     </ul>
@@ -46,9 +46,13 @@
       <p><strong>1 · Localization.</strong> Find the cards by <em>geometry</em>, not a trained
         detector — the UI layout is stable (radial ring + numbered position badges) even when card
         art changes. Classical, fast, survives art swaps.</p>
-      <p><strong>2 · Identification.</strong> Name each card with a small embedding + nearest-neighbor
-        over a per-art reference gallery (re-fit by swapping reference images, no retraining), with
-        the card's name-label text as an OCR cross-check.</p>
+      <p><strong>2 · Identification.</strong> Name each card with a small embedding model +
+        nearest-neighbor over a per-art reference gallery. Revised in practice: the off-the-shelf
+        model had to be <em>fine-tuned</em> on the card art before its calls meant anything, and it
+        now abstains ("unknown") unless the top match clearly beats the runner-up (a margin gate).
+        On an art swap: re-fine-tune (minutes on the dev GPU / free Colab) and rebuild the gallery —
+        cheap, but no longer literally zero retraining. The card's name-label text stays planned as
+        an OCR cross-check.</p>
       <p><strong>3 · On-card reading.</strong> Tiny custom recognizer for the closed glyph set (role
         names, small numbers); general OCR only as a fallback / dev tool.</p>
       <p><strong>4 · State assembly.</strong> Merge per-card reads into one snapshot; smooth across

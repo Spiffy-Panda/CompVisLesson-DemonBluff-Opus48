@@ -8,7 +8,7 @@ worked examples) are:
 
     from dbcv.schema import GameStateSnapshot, Source, Resolution, CardRead, Readings
     from dbcv.pipeline import run_pipeline, crop_relative
-    from dbcv.localize import localize, stub_localize
+    from dbcv.localize import classical_localize, stub_localize
     from dbcv.identify import identify
     from dbcv.assemble import assemble
     from dbcv.config import get_settings
@@ -20,4 +20,4 @@ need something not listed above.
 """
 
 # Package version mirrors schema_version so they stay in sync.
-__version__ = "0.1.0"
+__version__ = "0.2.0"

@@ -34,7 +34,7 @@ receives a single already-selected frame.
 
 ## Key signatures (with line numbers)
 
-### `MediaInfo` dataclass — line ~104
+### `MediaInfo` dataclass — line 107
 ```python
 @dataclass(frozen=True)
 class MediaInfo:
@@ -46,7 +46,7 @@ class MediaInfo:
 Resolution + frame rate **read from the media at runtime** (never baked).
 `fps_source` records provenance for debugging/lessons.
 
-### `SelectedFrame` NamedTuple — line ~120
+### `SelectedFrame` NamedTuple — line 121
 ```python
 class SelectedFrame(NamedTuple):
     frame_index: int     # 0-based index into the decoded stream
@@ -57,48 +57,48 @@ class SelectedFrame(NamedTuple):
 The selector's output record. Pixels are intentionally **not** stored on the
 record so a whole-video pass stays cheap in memory.
 
-### `read_media_info(video_path, cap=None) -> MediaInfo` — line ~170
+### `read_media_info(video_path, cap=None) -> MediaInfo` — line 175
 Reads width/height from `CAP_PROP_FRAME_WIDTH/HEIGHT`; fps from OpenCV
 `CAP_PROP_FPS`, falling back to **ffprobe** (`avg_frame_rate`/`r_frame_rate`,
 the `02_probe_video_meta.py` pattern), then a documented fallback. Accepts an
 already-open `VideoCapture` to avoid reopening.
 
-### `stride_for_fps(media_fps, target_fps=1.5) -> int` — line ~215
+### `stride_for_fps(media_fps, target_fps=1.5) -> int` — line 224
 `max(1, round(media_fps / target_fps))`. **The divisor is the media's measured
 fps — 30 is never assumed.** Raises `ValueError` on non-positive inputs.
 
-### `dhash(image, hash_w=8, hash_h=8) -> int` — line ~243
+### `dhash(image, hash_w=8, hash_h=8) -> int` — line 249
 Difference hash: grayscale → resize to `(9×8)` → compare adjacent columns →
 pack 64 bits (MSB-first, row-major). Encodes the *sign* of the horizontal
 brightness gradient (stable under global brightness/contrast shifts).
 Resolution-agnostic: only the fixed internal hash grid is used.
 
-### `hamming(a, b) -> int` — line ~285
+### `hamming(a, b) -> int` — line 291
 Popcount of the XOR (`(a ^ b).bit_count()`).
 
-### `iter_strided_frames(video_path, target_fps=1.5) -> Iterator[(idx, ts, bgr)]` — line ~295
+### `iter_strided_frames(video_path, target_fps=1.5) -> Iterator[(idx, ts, bgr)]` — line 301
 Opens the video once, derives the stride from the media's real fps, yields
 every `stride`-th decoded frame. Sequential decode (read-then-skip), no
 per-frame random seek. Timestamp = `idx / media_fps`.
 
-### `dedup_hashes(hashes, hamming_threshold=8) -> list[int]` — line ~335
+### `dedup_hashes(hashes, hamming_threshold=8) -> list[int]` — line 345
 Pure helper: greedy "keep-against-last-**kept**" → indices to keep. Comparing
 against the last *kept* (not the previous) frame collapses long runs of
 slowly-drifting near-duplicates into one kept frame.
 
-### `iter_selected_frames(video_path, target_fps=1.5, hamming_threshold=8, board_only=True) -> Iterator[(SelectedFrame, bgr)]` — line ~360
+### `iter_selected_frames(video_path, target_fps=1.5, hamming_threshold=8, board_only=True) -> Iterator[(SelectedFrame, bgr)]` — line 373
 Full cascade in one streaming pass (constant memory: only the last kept hash is
 held). **Order: dedup before gate**, so a run of identical board frames costs
 one `classify_frame_state` call. Non-board frames still update the dedup anchor
 so a modal→board transition is not masked. Yields pixels alongside the record.
 
-### `select_frames(video_path, target_fps=1.5, hamming_threshold=8, board_only=True) -> list[SelectedFrame]` — line ~400
+### `select_frames(video_path, target_fps=1.5, hamming_threshold=8, board_only=True) -> list[SelectedFrame]` — line 417
 Batch entry point. Returns one `SelectedFrame` per kept frame (no pixels — use
 `iter_selected_frames` for those). Heavy decoding lives here, off any REST path.
 
 ---
 
-## Tuning constants (module level, lines ~80–95; no pixel value hard-coded)
+## Tuning constants (module level, lines 72–98; no pixel value hard-coded)
 
 | Constant | Value | Purpose |
 |----------|-------|---------|

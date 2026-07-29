@@ -18,7 +18,7 @@ snapshot.
 
 ## Key signatures (with line numbers)
 
-### `crop_relative(image, bbox_rel) -> np.ndarray` — line 70
+### `crop_relative(image, bbox_rel) -> np.ndarray` — line 57
 ```python
 def crop_relative(image: np.ndarray, bbox_rel: BboxRel) -> np.ndarray:
 ```
@@ -26,16 +26,16 @@ def crop_relative(image: np.ndarray, bbox_rel: BboxRel) -> np.ndarray:
 Reads `image.shape[:2]` for (h, w), computes pixel coords from fractions,
 clamps to valid range, and returns the cropped sub-array.
 
-Conversion logic (line 92):
+Conversion logic (lines 90–93):
 ```python
 x0 = round(x_rel * w_img)
 y0 = round(y_rel * h_img)
 x1 = round((x_rel + w_rel) * w_img)
 y1 = round((y_rel + h_rel) * h_img)
 ```
-Clamping (line 97): `max(0, min(coord, dimension))` on all four values.
+Clamping (lines 96–99): `max(0, min(coord, dimension))` on all four values.
 
-### `run_pipeline(image, source, localizer, identifier, frame_state_fn) -> GameStateSnapshot` — line 110
+### `run_pipeline(image, source, localizer, identifier, frame_state_fn) -> GameStateSnapshot` — line 109
 ```python
 def run_pipeline(
     image: np.ndarray,

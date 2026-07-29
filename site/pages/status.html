@@ -4,14 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Project Status &amp; Handoff — CompVis Lesson</title>
-  <meta name="description" content="Build status and handoff summary for the Demon Bluff CV lesson project, as of 2026-06-22." />
+  <meta name="description" content="Build status and handoff summary for the Demon Bluff CV lesson project, as of 2026-07-28." />
   <link rel="stylesheet" href="../assets/style.css" />
 </head>
 <body>
   <div class="wrap">
     <p class="crumb"><a href="../index.html">← CompVis Lesson — Demon Bluff</a></p>
     <header class="site">
-      <p class="eyebrow">Build log · Snapshot 2026-06-22 14:11 PT · commit 049cb25</p>
+      <p class="eyebrow">Build log · Snapshot 2026-07-28 · post-audit resync, at/after commit 2ae5917</p>
       <h1>Project status &amp; handoff summary</h1>
       <p class="tagline">Where the pipeline and the course stand right now, in plain terms — a
         snapshot for picking the work back up. The cited, authoritative version lives in the repo
@@ -33,6 +33,12 @@
         <code>GameStateSnapshot</code> → <code>POST /v1/snapshot</code>. There's also a
         command-line runner that does the same on saved frames and draws annotated overlays.</p>
       <ul>
+        <li><strong>Frame selection (Stage 0, dev/batch).</strong> Turns an hour of raw video into
+          the handful of frames worth analysing: decode at a low stride derived from the video's
+          <em>measured</em> frame rate, drop near-duplicates by perceptual hash (a cheap 64-bit
+          fingerprint compared bit-by-bit), then keep only frames the gate below calls a board.
+          Deliberately kept off the web-service path — the service receives one already-chosen
+          frame.</li>
         <li><strong>Frame-state gate.</strong> Tells a real board from a menu or a pop-up dialog by
           comparing the brightness of the centre to the ring around it — the trick is that the game's
           dialogs sit on the <em>same dark background</em> as the board, so plain brightness fails but
@@ -44,7 +50,7 @@
         <li><strong>REST service.</strong> FastAPI; models load once at startup; CPU-bound work runs
           off the event loop; the JSON snapshot is versioned and always reports the resolution it
           actually measured (never a hard-coded size).</li>
-        <li><strong>Tests:</strong> 81 passing in about 22 seconds.</li>
+        <li><strong>Tests:</strong> 110 passing in about 27 seconds.</li>
       </ul>
     </div>
 
@@ -101,14 +107,16 @@
     <h2>What's next</h2>
     <div class="panel scratch">
       <ul>
-        <li>On-card / HUD text reading (a tiny recognizer for the small, fixed set of words and
-          numbers).</li>
-        <li>Combine reads across several frames into one stable snapshot (single frames can be
-          occluded by dialogs).</li>
-        <li>Finish frame selection (skip-ahead decoding + dropping near-duplicate frames) and the
-          remaining two lesson modules.</li>
-        <li><em>Optional deepening:</em> a second fine-tune round on real, labelled board crops to
-          push identification accuracy further (a dataset-building effort).</li>
+        <li>On-card / HUD text reading (Stage 3): a tiny recognizer for the small, fixed vocabulary
+          of role names and numbers, with a lightweight mobile OCR model as the fallback.</li>
+        <li>Temporal assembly (Stage 4): combine reads across several frames into one stable
+          snapshot (single frames can be occluded by dialogs).</li>
+        <li>The two remaining lesson modules (06 — text reading, 07 — state assembly), which wait on
+          those pipeline stages.</li>
+        <li>Round-2 dataset building: mine and label real board crops from the sample footage to
+          push identification accuracy further.</li>
+        <li>Refine the provisional "how sure before you commit" margin cutoff (currently 0.12) once
+          that real-crop data exists.</li>
       </ul>
     </div>
 
@@ -125,8 +133,9 @@
     </div>
 
     <footer class="site">
-      <p><span class="status-dot">●</span> Snapshot as of 2026-06-22 14:11 PT (commit 049cb25).
-        LLM-authored teaching artifact; status changes as the work continues.</p>
+      <p><span class="status-dot">●</span> Snapshot as of 2026-07-28 — a post-audit resync of this
+        page, reflecting the repo at/after commit 2ae5917. LLM-authored teaching artifact; status
+        changes as the work continues.</p>
     </footer>
   </div>
 </body>

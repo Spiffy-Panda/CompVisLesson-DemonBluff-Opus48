@@ -20,7 +20,7 @@ package (no circular risk).
 
 ## Key signatures (with line numbers)
 
-### `class Source(BaseModel)` — line 53
+### `class Source(BaseModel)` — line 43
 ```python
 class Source(BaseModel):
     video: str          # identifier for source video (stem only, no path)
@@ -28,14 +28,14 @@ class Source(BaseModel):
     timestamp_s: float  # seconds from start of video
 ```
 
-### `class Resolution(BaseModel)` — line 64
+### `class Resolution(BaseModel)` — line 51
 ```python
 class Resolution(BaseModel):
     w: int  # frame width in pixels — read from decoded image, NEVER assumed
     h: int  # frame height in pixels — read from decoded image, NEVER assumed
 ```
 
-### `class Readings(BaseModel)` — line 75
+### `class Readings(BaseModel)` — line 62
 ```python
 class Readings(BaseModel):
     text: str | None = None      # role-name text found on the card
@@ -43,7 +43,7 @@ class Readings(BaseModel):
     state: str | None = None     # discrete state marker (e.g. 'poisoned')
 ```
 
-### `class CardRead(BaseModel)` — line 90
+### `class CardRead(BaseModel)` — line 83
 ```python
 class CardRead(BaseModel):
     bbox_rel: tuple[float, float, float, float]
@@ -55,7 +55,7 @@ class CardRead(BaseModel):
     confidence: float    # [0.0, 1.0], ge=0.0 le=1.0
 ```
 
-### `class GameStateSnapshot(BaseModel)` — line 132
+### `class GameStateSnapshot(BaseModel)` — line 130
 ```python
 class GameStateSnapshot(BaseModel):
     source: Source

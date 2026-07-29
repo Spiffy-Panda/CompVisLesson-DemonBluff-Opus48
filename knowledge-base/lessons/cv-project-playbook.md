@@ -49,3 +49,15 @@ Notes for spinning up the *next* "read game/UI state out of video with computer 
 
 ### 2026-06-21 — bootstrap
 First instance of this playbook, written during the *Demon Bluff* project bootstrap. The structure above is what we stood up; revise it here as later phases prove or disprove pieces.
+
+### 2026-07-28 — always test degenerate inputs against similarity metrics
+`cv2.compareHist(zeros, anything)` with the correlation metric returns **1.0** (Pearson 0/0, clamped) — so an all-black crop "perfectly matched" every gallery entry. Any similarity/correlation metric has a degenerate input that maxes it out; write the zero/empty/uniform-input test *before* trusting the metric, and guard (here: a zero-sum check) rather than assuming real inputs are always well-formed.
+
+### 2026-07-28 — re-validate threshold *semantics*, not just values, after any re-fit
+Fine-tuning the embedding backbone compressed the absolute cosine scale (correct match ~0.6, unrelated ~0.4), so the old absolute-cosine abstention threshold (0.60) silently over-identified **125/125** real cards — the number wasn't miscalibrated, the *quantity it thresholded* had stopped meaning anything. The fix was switching to a relative signal (top1−top2 margin). Lesson: a model re-fit can invalidate what a threshold measures, not just where it sits; re-derive every downstream cutoff (and the meaning of any exported `confidence`) as part of the retrain checklist.
+
+### 2026-07-28 — validate "ideal landmark" assumptions on real frames; demote, don't discard
+The numbered position badges looked like ideal localization anchors on inspection, but raw blob detection over-fired 30–60/frame (card clue-text panels produce indistinguishable bright blobs). Instead of abandoning them, they were **demoted from anchoring to ordering** — a role the noisy signal can still serve. Lesson: an eyeballed "obvious landmark" needs an implementation-level check on real frames, and a failed primary role may still leave a useful secondary one.
+
+### 2026-07-28 — name the failure correctly before fixing it
+When the frozen-ImageNet embedder collapsed all 43 stylised characters into one cluster, the tempting label was "neural collapse" — which would have suggested the prototype-gallery architecture was wrong. The correct diagnosis (from the literature) was **domain shift of frozen ImageNet features to stylised fine-grained art**, which says the *features* need adapting and the gallery is fine. That naming directly selected the fix (LP-FT fine-tune of the same backbone, gallery unchanged) and it worked (inter-prototype cosine 0.85 → 0.41). Lesson: research the failure mode's proper name first — the wrong name points the fix at the wrong component.

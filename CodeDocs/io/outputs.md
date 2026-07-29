@@ -9,6 +9,7 @@ Update this whenever a produced format changes (Rule 3).
 | Card crops | in-memory only (slice) | numpy array (HxWxC, BGR) | Localized card regions in pixel coordinates, derived from relative boxes. |
 | Game-state snapshot | in-memory / HTTP response | JSON (`GameStateSnapshot`) | The structured board read per frame.  See schema below.  Version: **0.2.0**. |
 | REST response | `POST /v1/snapshot` | JSON | Snapshot returned over HTTP.  Shape is identical to the game-state schema. |
+| Batch pipeline output | `dataset/pipeline-out/` (gitignored, regenerable) | JSON + PNG pairs | Produced by `utils/python/run_pipeline.py` over already-selected frames: per frame a `<Sample>_<NNN>_t<SSSSS>s.json` (`GameStateSnapshot`, same schema as the REST response) plus, with `--overlay`, a `<same stem>_overlay.png` annotated visual overlay. Dev/debug artifacts only — never served. |
 
 ---
 

@@ -16,7 +16,19 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
-## 2026-06-22 — Stage 0 frame selector shipped (stride-decode + perceptual-hash dedup)
+## 2026-07-28 — Post-hiatus audit + full-tier resync; merged `embedding-finetune-round1` into main
+
+**Context:** ~5 weeks idle after the 2026-06-22 handoff. A four-agent read-only audit (plans/docs, code+tests, deliverables, git/env) confirmed the code was healthy — **110/110 tests re-verified green (~23 s)**, venv matches pins exactly, no hard-coded resolutions, public-surface gate clean — but found the last two feature commits had synced CodeDocs while skipping the Lesson-Plan and site tiers, plus assorted drift.
+
+**Choice:** Fast-forwarded `main` onto `embedding-finetune-round1` (branch's purpose — the round-1 fine-tune — was complete; round 2 is defined as dataset-building, a separate unit), then a three-agent remediation pass over disjoint tiers, then push.
+
+**What was fixed (headline):** modules 02/08 no longer claim frame selection / ONNX serving are unbuilt; README no longer says "the CV pipeline is not built yet"; `gallery.md`'s art-swap contract now matches the adopted re-fine-tune story; `api.py` docstrings/fallback message corrected (was pointing at `export_backbone.py` — running it would NOT have fixed a missing served model; `finetune_embedding.py` is correct); dead `localize` alias + 3 dead imports removed; `__version__` → 0.2.0; line numbers resynced across all CodeDocs overviews; site status page current; PLAN-pipeline's two standing invariants moved out of the checklist (the slug was structurally un-completable); PROJECT-PITCH gained the missing Stage-0 and course-delivery decision rows; three retroactive RESEARCH entries logged (brightness-ratio gate, HSV histogram correlation → Swain & Ballard '91, ORB tiebreaker → Rublee '11 + Lowe '04) — each marked as closing a research-before-deciding violation; knowledge-base playbook finally appended (4 lessons).
+
+**Round-1 numbers not previously captured here** (from the gitignored `models/_round1_train.log` / `finetune_round1_results.txt`, recorded before they're ever lost): hyperparams `lr_backbone=1e-4, lr_proxy=1e-2, alpha=32.0, margin=0.1, seed=0`; inter-prototype cosine median 0.857→0.412, p95 0.913→0.482, min 0.651→0.232; trainable params exactly 736,488 (79.4% of backbone); final losses Phase A ≈6.56, Phase B ≈0.29; refs-per-class min/max = 1/3.
+
+**Correction:** the 2026-06-22 RESEARCH fine-tune entry says "1–67 reference images/class" — that misreads 67 (the *total* ref count) as a per-class max; actual per-class range is **1–3**. RESEARCH is not append-only but the entry is dated, so the correction lives here.
+
+**Notes / risks:** (1) The `_ft`-suffixed artifact names in the old training log are a relic — current `finetune_embedding.py` defaults `--out-onnx/--out-pt` to the canonical unsuffixed served paths, so `models/README.md`'s "re-run to regenerate" is correct as written. (2) The audit's advisory on the third-party streamer handle in module 04 / observed-board-layout was left for a human call — not remediated. (3) Claude-5-generation model quality checks were explicitly deferred by the user; the audit flag lists in this session are the natural worklist when that happens.
 
 **Context:** Stage 0 had only the board-state gate; the plan still owed the low-fixed-stride decode + perceptual-hash near-duplicate dedup that turn a ~1 h capture into the handful of frames worth analysing.
 

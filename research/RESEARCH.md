@@ -35,6 +35,36 @@ Every **non-Demon-Bluff** subject researched before a decision. Newest entries o
      pipeline stage (frame-selection → localization → identification → OCR →
      serving → compute budget) rather than by clock time, since they share a date. -->
 
+## Brightness/luminance-statistic heuristics for frame-state gating (center-vs-ring ratio) — 2026-07-28 *(retroactive — technique shipped 2026-06-22; logged during audit remediation. The research-before-deciding rule was violated for this technique; this entry closes the record.)*
+
+- **Source:**
+  - *Video shot-boundary detection: issues, challenges and solutions* — Artificial Intelligence Review (Springer, 2024) — https://link.springer.com/article/10.1007/s10462-024-10742-1
+  - *Shot Boundary Detection: Fundamental Concepts and Survey* — CEUR-WS Vol. 2589 — https://ceur-ws.org/Vol-2589/Paper6.pdf
+- **Authority / trust:** **A** for the Springer survey (peer-reviewed journal); **B** for the CEUR workshop survey (workshop-reviewed, standard reference material). Neither addresses game-UI state detection specifically — they establish the legitimacy of the *family* (cheap luminance/intensity statistics for frame classification), not our exact gate.
+- **Reason for inclusion / what we were looking for:** Retroactive grounding for the Stage 0 frame-state gate (`src/dbcv/frame_state.py`): classifying a frame as board / modal / menu from a **center-vs-ring mean-brightness ratio**.
+- **Abstract of findings:** The shot-boundary/frame-filtering literature's cheapest tier is exactly this family: pixel-intensity and luminance-histogram statistics compared against thresholds, valued for an "acceptable trade-off between computational complexity and performance." Its documented weaknesses transfer to us: absolute-intensity measures are "very sensitive to luminance changes," and global histograms ignore spatial layout, so dissimilar content can alias. Both weaknesses showed up in practice — absolute center brightness scored 0/3 on modal frames (modals share the board's dark starfield) — and the fix was spatially-structured statistics: the **ratio** of center-region to surrounding-ring brightness (board ~1.0–1.1, modal ~3–6; threshold 2.0 in a clean 3× gap; 7/7 labelled frames correct).
+- **Fit for our constraints (and the honest record):** The original frame-selection entry (2026-06-21) recommended **template-matching on stable UI anchors** for this gate. The shipped gate is the cheaper brightness heuristic instead, adopted because it went 7/7 on the labelled frames with zero dependencies beyond numpy and no anchor templates to maintain across art swaps. The anchor/template approach **remains the documented fallback** if the ratio gate over- or under-fires on new modal types (`Sample1_000` is already the closest call at 3.1 vs threshold 2.0).
+
+## Color-histogram matching for object identification (HSV histogram + correlation metric) — 2026-07-28 *(retroactive — technique shipped 2026-06-22; logged during audit remediation. The research-before-deciding rule was violated for this technique; this entry closes the record.)*
+
+- **Source:**
+  - Swain & Ballard, *Color Indexing* — IJCV 7(1):11–32, 1991 — http://www.liralab.it/teaching/SINA/slides-current/swain.ballard.1991.pdf
+  - OpenCV *Histogram Comparison* tutorial (`cv::compareHist`, `HISTCMP_CORREL`) — https://docs.opencv.org/4.x/d8/dc8/tutorial_histogram_comparison.html
+- **Authority / trust:** **A** — the canonical peer-reviewed anchor for histogram-based object identification (verified: IJCV vol. 7 no. 1, 1991), plus official OpenCV documentation for the exact function/metric used.
+- **Reason for inclusion / what we were looking for:** Retroactive grounding for the classical Stage 2 identifier's primary signal (`src/dbcv/identify.py`): matching a card crop against the reference gallery by **2-D HSV (hue×sat) histogram correlation**.
+- **Abstract of findings:** Swain & Ballard established that color histograms of multicolored objects are a robust, efficient index into a database of models — stable over viewpoint change and able to differentiate many objects (66-model dataset: correct model was the best match 29/32, second-best the other 3). Their matcher is **histogram intersection**; OpenCV's `HISTCMP_CORREL` is a different metric from the same family (Pearson correlation over bins, higher = better, 1.0 = identical), documented officially. Honest caveats: histograms discard spatial layout (two different cards with similar palettes alias — observed as a duplicate-`Scout` false match), and the correlation metric degenerates on all-zero input (`compareHist(zeros, ·) == 1.0` — hit in practice, fixed with a zero-sum guard).
+- **Fit for our constraints:** Value channel excluded from the histogram to survive state-tinting; opencv-only, zero training, gallery rebuild = art-swap story. Measured ~40–60% on face-up cards with honest "unknown" elsewhere — kept as the conservative fallback identifier and the pedagogical lower bound (Module 05).
+
+## ORB features + Lowe ratio test as an identification tiebreaker — 2026-07-28 *(retroactive — technique shipped 2026-06-22; logged during audit remediation. The research-before-deciding rule was violated for this technique; this entry closes the record.)*
+
+- **Source:**
+  - Rublee, Rabaud, Konolige, Bradski, *ORB: an efficient alternative to SIFT or SURF* — ICCV 2011 — https://sites.cc.gatech.edu/classes/AY2024/cs4475_summer/images/ORB_an_efficient_alternative_to_SIFT_or_SURF.pdf
+  - Lowe, *Distinctive Image Features from Scale-Invariant Keypoints* — IJCV 60(2):91–110, 2004 — https://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
+- **Authority / trust:** **A** — both canonical peer-reviewed papers (ICCV 2011; IJCV 2004), verified. Cross-reference: ORB was previously cited in this file only under the **localization** entry (2026-06-21, via a B/C-tier practitioner SIFT-vs-ORB comparison); this entry anchors its **identification** use to the primary sources.
+- **Reason for inclusion / what we were looking for:** Retroactive grounding for the classical Stage 2 identifier's tiebreaker (`src/dbcv/identify.py`): when the top-2 histogram correlations are within 0.05, ORB keypoint matching decides.
+- **Abstract of findings:** ORB (oriented FAST keypoints + rotated BRIEF binary descriptors) performs comparably to SIFT in many matching tasks at roughly two orders of magnitude less cost, and is patent-free — the right local-feature choice for a CPU-budget pipeline. Lowe's ratio test (IJCV 2004, §7.1) filters matches by the ratio of nearest to second-nearest descriptor distance; at his 0.8 threshold it eliminated ~90% of false matches while discarding <5% of correct ones. Honest caveats: binary-descriptor matching is weaker than SIFT under large scale change, and stylised flat card art yields fewer distinctive keypoints than the textured photos the papers benchmark on — which is why ORB is a *tiebreaker* here, not the primary signal.
+- **Fit for our constraints:** opencv-built-in, no model, no training, negligible latency on ~2 candidate comparisons per crop; re-fits on an art swap with the gallery rebuild alone.
+
 ## Why a frozen-ImageNet embedding + NN gallery collapses on stylized cards, and how to fix it — 2026-06-22
 
 - **Source:**

@@ -6,7 +6,7 @@ frame, return a list of relative bounding boxes, one per card.
 
 Interface
 ---------
-    localize(image, resolution) -> list[tuple[float, float, float, float]]
+    localizer(image, resolution) -> list[tuple[float, float, float, float]]
 
     Each returned tuple is (x, y, w, h) in *relative coordinates*:
       - x, y  : top-left corner as a fraction of the frame width/height
@@ -385,14 +385,3 @@ def classical_localize(
             kept.append((sx, sy, sw, sh))
 
     return kept
-
-
-# ---------------------------------------------------------------------------
-# Module default — swapped to the validated classical implementation
-# ---------------------------------------------------------------------------
-
-# Import this name to get the current best-available localizer.
-# Previously pointed at stub_localize (the teaching baseline).
-# Now points at classical_localize, which was validated on real sample frames
-# (8/8 board frames exact, 0 false positives — see module docstring).
-localize = classical_localize

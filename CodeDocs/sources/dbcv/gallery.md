@@ -10,7 +10,8 @@ Both builders are **memoized** at the process level (module-level dict caches) �
 **Purpose:** Builds and holds the reference galleries for card identification:
 - Classical (`Gallery`): HSV histograms + ORB descriptors. Called by `classify_crop`.
 - Embedding (`EmbeddingGallery`): L2-normalised prototype embeddings via `OnnxEmbedder`.
-  Called by `classify_crop_embedding`. Art swap = re-run both builders; zero gradient steps.
+  Called by `classify_crop_embedding`. Art swap: re-fine-tune the backbone, then re-run
+  both builders (see "Art-swap contract" below).
 
 **Who uses it:**
 - `dbcv/api.py` — calls `build_gallery()` and `build_embedding_gallery()` in `lifespan()`;
@@ -27,7 +28,7 @@ Both builders are **memoized** at the process level (module-level dict caches) �
 
 ## Key types
 
-### `GalleryEntry` — `NamedTuple` (line ~56)
+### `GalleryEntry` — `NamedTuple` (line 92)
 ```python
 class GalleryEntry(NamedTuple):
     identity: str          # e.g. "Alchemist" (alias-resolved)
@@ -39,7 +40,7 @@ class GalleryEntry(NamedTuple):
     orb_desc: DescriptorArray  # (N, 32) uint8 ORB descriptors, or None
 ```
 
-### `Gallery` — `dataclass` (line ~78)
+### `Gallery` — `dataclass` (line 111)
 ```python
 @dataclass
 class Gallery:
@@ -115,7 +116,7 @@ reference image height (the art region), returns BGR array or None on failure.
 
 ## Embedding gallery (Stage 2 — embedding identifier)
 
-### `EmbeddingGalleryEntry` — `NamedTuple` (line ~370)
+### `EmbeddingGalleryEntry` — `NamedTuple` (line 396)
 ```python
 class EmbeddingGalleryEntry(NamedTuple):
     identity: str       # e.g. "Alchemist" (alias-resolved)
@@ -123,7 +124,7 @@ class EmbeddingGalleryEntry(NamedTuple):
     embedding: np.ndarray  # [576] float32, unit L2 norm (prototypical mean)
 ```
 
-### `EmbeddingGallery` — `dataclass` (line ~395)
+### `EmbeddingGallery` — `dataclass` (line 412)
 ```python
 @dataclass
 class EmbeddingGallery:
@@ -164,12 +165,25 @@ A model or art swap requires a process restart to clear the cache.
 
 ## Art-swap contract
 
-To retrain after an art swap (both classical and embedding):
+The two arms have different costs on an art swap:
+
+**Classical arm (`Gallery`) — zero gradient steps.**
 1. Replace PNGs in `knowledge-base/card-art/`.
-2. Restart the server (or call both `build_gallery()` and `build_embedding_gallery()` in the lifespan).
-3. No gradient steps. No model file changes. ONNX backbone stays the same.
+2. Restart the server (rebuilds HSV histograms + ORB descriptors from the new
+   PNGs in ~100 ms).
 
-The ONNX backbone file is NOT retrained on an art swap — only the reference
-embeddings in the gallery are recomputed (seconds of compute).
+**Embedding arm (`EmbeddingGallery`) — re-fine-tune, then rebuild.**
+The served backbone (`models/mobilenetv3_small_embed.onnx`) is **domain-fine-tuned**
+on the current card art (Proxy-Anchor LP-FT — see `models/README.md` and
+`CodeDocs/io/inputs.md`), so its features are specialised to that art. On a swap:
+1. Replace PNGs in `knowledge-base/card-art/`.
+2. Re-fine-tune: `.venv/Scripts/python.exe utils/python/finetune_embedding.py`
+   (~minutes on the Titan Xp or a free Colab GPU — dev-time only, torch required).
+3. Restart the server — `build_embedding_gallery()` re-embeds the new PNGs into
+   fresh prototypes (seconds, ONNX-on-CPU).
 
-This satisfies the "cheap to retrain" constraint from `CLAUDE.md`.
+(Skipping step 2 and re-embedding through the stale fine-tuned backbone would
+still run, but its features are fit to the old art — expect degraded margins.)
+
+This satisfies the "cheap to retrain" constraint from `CLAUDE.md`: the classical
+arm is free, and the fine-tune fits comfortably in the Titan Xp / free-Colab budget.

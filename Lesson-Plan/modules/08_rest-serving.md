@@ -74,35 +74,41 @@ async def lifespan(application: FastAPI):
     settings = get_settings()
     application.state.settings = settings
 
+    # Classical reference gallery — the baseline, kept as a fallback.
     gallery = build_gallery()
     application.state.gallery = gallery
-    application.state.identifier = make_gallery_identifier(gallery)
+    application.state.classical_identifier = make_gallery_identifier(gallery)
+
+    # ONNX embedding backbone + prototype gallery — the adopted default.
+    try:
+        embedder = get_onnx_embedder()       # loads the InferenceSession, once
+        embed_gallery = build_embedding_gallery(gallery, embedder)
+        application.state.identifier = make_embedding_identifier(embedder, embed_gallery)
+    except FileNotFoundError:
+        # ONNX file not exported yet — warn and fall back to classical.
+        application.state.identifier = application.state.classical_identifier
 
     yield  # <-- application is live here
 
     # --- shutdown ---
-    # Gallery is in-memory only; nothing to close.
+    # Gallery and ONNX session are in-memory only; nothing explicit to close.
 ```
 
-`build_gallery()` loads ~67 small PNGs from `knowledge-base/card-art/`, computes HSV histograms and ORB descriptors for each, and returns a reference gallery. This takes roughly 100 ms and touches the filesystem. It runs exactly once per server process, not once per request.
+(Paraphrased from `src/dbcv/api.py`; read the shipped `lifespan` alongside this — it carries the full comments.)
 
-`make_gallery_identifier(gallery)` wraps the gallery in a callable that accepts a card crop and returns `(identity, role_class, confidence)`. The callable is stored on `app.state.identifier` so the endpoint can retrieve it without a module-level reference to the gallery (which would cause the import-time problem described above).
+Two loads happen here, and both follow the same load-once discipline:
+
+1. **The classical gallery.** `build_gallery()` loads ~67 small PNGs from `knowledge-base/card-art/`, computes HSV histograms and ORB descriptors for each, and returns a reference gallery. This takes roughly 100 ms and touches the filesystem. It runs exactly once per server process, not once per request. `make_gallery_identifier(gallery)` wraps it in a callable that accepts a card crop and returns `(identity, role_class, confidence)`.
+
+2. **The ONNX embedding stack.** `get_onnx_embedder()` creates an `onnxruntime.InferenceSession` over `models/mobilenetv3_small_embed.onnx` — the **fine-tuned** MobileNetV3-Small backbone from Module 05 — on the CPU execution provider. `build_embedding_gallery(gallery, embedder)` then embeds the reference PNGs and computes one prototypical mean embedding per character (~43 prototypes, ~1–2 s total). `make_embedding_identifier(...)` wraps both into the default identifier: embed the crop, find the nearest prototype, and abstain ("unknown") unless the top1−top2 cosine margin clears the gate (threshold 0.12 — provisional, pending Round-2 data).
+
+The callables are stored on `app.state` — the default on `app.state.identifier`, the classical one on `app.state.classical_identifier` — so the endpoint can retrieve them without a module-level reference (which would cause the import-time problem described above). If the ONNX file is missing (a fresh clone before running `utils/python/export_backbone.py`), the `except FileNotFoundError` branch emits a warning and serves the classical identifier instead — the service degrades to the baseline rather than refusing to start.
 
 The `yield` is the dividing line: everything before it is startup; everything after it (inside a `finally` block in practice) is shutdown. The app is alive and serving requests only while suspended at `yield`.
 
-**Art-swap note:** on an art swap, rebuild the gallery by restarting the server. Because `build_gallery()` reads from `knowledge-base/card-art/`, swapping the PNG files and restarting is all that is required. No model weights change. No training runs. This is the "no gradient steps on an art swap" principle from Module 05 in action, now enforced at the serving layer.
+**Art-swap note (revised — see Module 05):** an earlier draft of this section promised "no model weights change, no training runs" on an art swap. That was true when the server wired only the classical gallery, and the course retracted it when the fine-tuned embedding identifier became the default. The current story: on an art swap, re-fine-tune the backbone (`utils/python/finetune_embedding.py`, ~minutes on a Titan Xp or free Colab tier), re-export to ONNX, swap the reference PNGs, restart the server. The classical fallback still rebuilds with zero training. What the serving layer guarantees is unchanged either way: the endpoint contract does not move, and the swap cost is a restart, not a redeploy.
 
-The comment in the `lifespan` docstring shows where future ONNX model loading would slot in:
-
-```python
-# Example (future):
-#   application.state.ort_session = ort.InferenceSession(
-#       model_path,
-#       providers=["CPUExecutionProvider"],
-#   )
-```
-
-When real ONNX models are wired in, they will load here, once, and live on `app.state` for the server's lifetime. The research entry recommends setting `intra_op_num_threads` to the number of physical cores and `ORT_ENABLE_ALL` for the optimization level.
+**How this section evolved:** the first version of `lifespan` built only the classical gallery, and the ONNX load existed as a commented-out `# Example (future):` sketch in the docstring. The sketch became real code when Module 05's fine-tuned backbone shipped — and it slotted in exactly where the comment said it would, which is the payoff of designing the loading seam before the model exists. Per the research entry, a production tuning pass would also set `intra_op_num_threads` to the number of physical cores and the optimization level to `ORT_ENABLE_ALL`.
 
 ### `POST /v1/snapshot` in `api.py`
 
@@ -150,15 +156,16 @@ The version string is semver: a minor bump for backward-compatible additions, a 
 
 ## The contract check: the test suite
 
-`tests/test_api.py` serves as the live contract check. Its five tests form a hierarchy:
+`tests/test_api.py` serves as the live contract check. Its six tests form a hierarchy:
 
 1. `test_snapshot_http_200` — the endpoint accepts a real frame and returns 200. This catches server startup failures, import errors, and gallery-build failures.
 2. `test_snapshot_parses_as_game_state` — the response body validates as `GameStateSnapshot` with `schema_version == "0.2.0"`. This catches any response that does not match the schema (wrong field name, missing required field, wrong type).
 3. `test_resolution_matches_actual_image` — the server's `resolution` field matches PIL's independent measurement of the same file. This is the resolution-agnostic correctness check: if the server ever uses a hard-coded resolution, this test catches it on the next run.
 4. `test_at_least_four_cards_returned` — the classical localizer finds at least 4 cards on the validated board frame (spike result: 8). This catches a regression from classical to stub localizer.
 5. `test_bbox_rel_all_in_unit_range` — every bbox_rel component is in [0.0, 1.0]. This catches a localizer that returns pixel coordinates instead of relative fractions.
+6. `test_classical_localize_board_frame_count` — a direct unit test (no API layer) that `classical_localize` finds 5–12 boxes on the validated board frame, isolating localizer regressions from serving-layer failures.
 
-The tests run against the FastAPI `TestClient`, which invokes the full lifespan (gallery builds, identifier is created) and then routes requests through the actual endpoint. They are integration tests, not unit tests, and they are the right level of coverage for a serving contract: they test the whole stack, not a mocked subset.
+The API tests run against the FastAPI `TestClient`, which invokes the full lifespan (both galleries build, the ONNX session loads, the identifier is created) and then routes requests through the actual endpoint. They are integration tests, not unit tests, and they are the right level of coverage for a serving contract: they test the whole stack, not a mocked subset.
 
 To run them:
 
@@ -203,7 +210,7 @@ The response includes `resolution`, `frame_state`, `schema_version`, and the lis
 
 **No batching.** This API processes one frame per request. The research entry notes that micro-batching helps only under sustained high request rates — for a low-concurrency teaching service where frames arrive interactively (a student POSTing one at a time), per-request inference is the right default. A production service serving a live game monitor at steady state would introduce batching and a queue; that is out of scope for this course.
 
-**No ONNX session yet.** The current pipeline uses a classical gallery identifier (HSV histograms + ORB descriptors, no neural weights). The `lifespan` docstring shows where an `ort.InferenceSession` would load; when the card identification module produces a trained ONNX model, it will slot in there. The serving layer does not need to change. This is the art-swap principle at the serving layer: retrain, re-export to ONNX, restart the server — the endpoint contract is unchanged.
+**The ONNX session is live — and the serving layer didn't change.** The default identifier is now the fine-tuned embedding-NN: an `onnxruntime.InferenceSession` over `models/mobilenetv3_small_embed.onnx`, loaded once in `lifespan`, with the classical gallery identifier retained as a fallback when the ONNX file is absent. The point worth teaching is what *didn't* move when the model did: the endpoint signature, the schema, and the client contract are byte-for-byte the same as when the server wired only classical CV. Retrain, re-export to ONNX, restart the server — the contract holds. That is the art-swap principle at the serving layer (with the cost honestly restated: a swap now includes a minutes-long re-fine-tune, per Module 05, not zero training).
 
 **`schema_version` as a forcing function.** Adding `schema_version` to a schema feels like overhead when the schema is stable. Its value becomes obvious the moment a collaborator (or future self) changes a field name and the downstream consumer fails silently for a week before anyone notices. The discipline of bumping the version string on every breaking change and checking it on every parse is the difference between a contract and a guess.
 
@@ -214,6 +221,8 @@ The response includes `resolution`, `frame_state`, `schema_version`, and the lis
 **`async def` inference blocks all concurrent requests.** If a future contributor refactors the `snapshot` endpoint from `def` to `async def` without adding an explicit `await asyncio.get_event_loop().run_in_executor(...)` call, the first slow frame will block every other request for its duration. Under a load test, the service degrades immediately. The symptom is correct single-request latency and near-zero multi-request throughput. The fix is reverting to plain `def` or adding an explicit executor call.
 
 **Gallery not built before first request.** If the gallery is built inside the endpoint (not in `lifespan`), the first request pays the 100 ms build cost and may race with a second concurrent request that starts the build simultaneously. Depending on whether `build_gallery` is idempotent, this can corrupt the in-memory gallery or simply waste work. The `lifespan` pattern makes this impossible: the app does not accept requests until `yield` returns, and the gallery is built before that.
+
+**The graceful fallback can hide a missing model.** If `models/mobilenetv3_small_embed.onnx` is absent, `lifespan` warns and serves the classical identifier — the server starts, every endpoint returns 200, and nothing looks broken. The symptom is quieter: identification quality silently drops to the baseline (~a third of cards named, per Module 05's numbers). A deployment that cares about which identifier is live should assert on the warning or expose the active identifier in a health endpoint; the current teaching service accepts the trade for a friendlier fresh-clone experience.
 
 **`schema_version` not checked by a client.** A client that parses `response["cards"]` without checking `schema_version` will silently misparse a 0.2.0 response if it was written expecting 0.1.0. The `frame_state` field is new in 0.2.0; a 0.1.0 client will ignore it (Pydantic's default), which may be acceptable for `frame_state` but becomes dangerous for a field that changes the meaning of an existing key. The correct client pattern is: read `schema_version` first, reject if not the expected version, then parse the body.
 

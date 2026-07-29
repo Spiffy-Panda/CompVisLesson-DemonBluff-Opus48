@@ -8,7 +8,7 @@ Agent-facing spec for `knowledge-base/`. Tells you how the cached game knowledge
 
 - **`wiki/_raw_cache/`** (gitignored) — the verbatim "fetch once" cache. One file per wiki page, named after the page. Hitting the wiki for a page that already exists here is a bug.
 - **`wiki/*.md`** (tracked) — transcribed/transformed pages. Keep these *transformative*: structured summaries, extracted data tables, our own phrasing — not verbatim copies (Rule 6). One `.md` per meaningful page or per townee group.
-- **`wiki/townees/`** (created during harvest) — per-role-class data for villager / minion / outcast / demon, each townee's identity, mechanics, and a pointer to its art in `card-art/`.
+- **`wiki/townees/`** (created during harvest) — currently holds only `ROSTER.md`, the transformative roster of all 44 roles by class (villager / minion / outcast / demon). Per-townee mechanics transcriptions are deferred (write on demand — see the inventory note below); raw per-role data stays in `_raw_cache/`.
 
 ### 2. Learned lessons (`lessons/`)
 
@@ -32,6 +32,7 @@ Agent-facing spec for `knowledge-base/`. Tells you how the cached game knowledge
 | `wiki/harvest-manifest.json` | tracked manifest: class → role → cache path + art files (67 art files total) |
 | `card-art/<class>/<role>/` | **downloaded** (gitignored) — 67 art files; reference gallery, versioned per art set |
 | `lessons/cv-project-playbook.md` | seeded during bootstrap; appended over time |
+| `../models/` (repo root) | **pointer** — the fine-tuned embedding backbone (ONNX/`.pt`, gitignored, regenerable) that consumes `card-art/` to build the in-memory embedding gallery at runtime; documented in `models/README.md` |
 | `lessons/observed-board-layout.md` | **written** — ground-truth board layout from inspecting sample frames |
 
 Per-role mechanics transcriptions remain deferred (write on demand, keep transformative — Rule 6).

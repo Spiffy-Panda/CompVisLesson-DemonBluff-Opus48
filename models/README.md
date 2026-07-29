@@ -12,6 +12,8 @@ identifier (Stage 2).
 | `mobilenetv3_small_embed.onnx` | ~3.7 MB | `utils/python/finetune_embedding.py` | `.venv\Scripts\python.exe utils\python\finetune_embedding.py` |
 | `mobilenetv3_small_embed.pt` | ~3.8 MB | `utils/python/finetune_embedding.py` | (written alongside the `.onnx` by the same run) |
 | `mobilenetv3_small_embed_frozen.onnx` | ~3.7 MB | `utils/python/export_backbone.py` | `.venv\Scripts\python.exe utils\python\export_backbone.py` |
+| `_round1_train.log` | ~2 KB | `utils/python/finetune_embedding.py` | console log of the round-1 fine-tune run (gitignored, regenerable by re-running; authoritative numbers live in `DEV-LOG.md`) |
+| `finetune_round1_results.txt` | ~1 KB | `utils/python/finetune_embedding.py` | round-1 hyperparameters + summary metrics (gitignored, regenerable by re-running; authoritative numbers live in `DEV-LOG.md`) |
 
 The **served** model is `mobilenetv3_small_embed.onnx` — the **fine-tuned** backbone.
 `mobilenetv3_small_embed_frozen.onnx` is the **frozen-ImageNet baseline**, kept only for the

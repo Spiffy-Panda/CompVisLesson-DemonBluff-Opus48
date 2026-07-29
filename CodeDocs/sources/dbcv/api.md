@@ -13,7 +13,7 @@ Follows the lifespan + plain-def patterns from research/RESEARCH.md entry 5.
 
 ## Key signatures (with line numbers)
 
-### `lifespan(application: FastAPI)` async context manager — line 44
+### `lifespan(application: FastAPI)` async context manager — line 55
 ```python
 @asynccontextmanager
 async def lifespan(application: FastAPI):
@@ -32,11 +32,11 @@ If the ONNX file is absent, the lifespan emits a `warnings.warn` and falls back:
 **Teaching note:** `@app.on_event("startup")` is deprecated — `lifespan` is
 the current recommended pattern (FastAPI docs, research/RESEARCH.md entry 5 src 1).
 
-### `app = FastAPI(...)` — line 74
+### `app = FastAPI(...)` — line 134
 FastAPI application object.  Title: "Demon Bluff CV — snapshot API".
 Version: "0.1.0".  Passed `lifespan=lifespan`.
 
-### `snapshot(file, video, frame_index, timestamp_s) -> GameStateSnapshot` — line 93
+### `snapshot(file, video, frame_index, timestamp_s) -> GameStateSnapshot` — line 156
 ```python
 @app.post("/v1/snapshot", response_model=GameStateSnapshot)
 def snapshot(
@@ -50,7 +50,7 @@ def snapshot(
 CPU-bound CV inference in `async def` would block the event loop
 (research/RESEARCH.md entry 5, source 2 and 5).
 
-**Image decoding (line 126):**
+**Image decoding (line 195):**
 ```python
 image_array = cv2.imdecode(
     np.frombuffer(raw_bytes, dtype=np.uint8),

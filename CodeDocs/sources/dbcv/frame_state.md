@@ -16,14 +16,14 @@ function first; non-board frames skip localisation entirely (returning `cards=[]
 
 ## Key signatures (with line numbers)
 
-### `FrameState` type alias — line 35
+### `FrameState` type alias — line 81
 ```python
 FrameState = Literal["board", "modal", "menu"]
 ```
 Used as the return type of `classify_frame_state` and as the type of the
 `frame_state_fn` parameter injected into `run_pipeline`.
 
-### `classify_frame_state(image) -> FrameState` — line 93
+### `classify_frame_state(image) -> FrameState` — line 120
 ```python
 def classify_frame_state(image: np.ndarray) -> FrameState:
 ```
@@ -35,11 +35,11 @@ def classify_frame_state(image: np.ndarray) -> FrameState:
 **Returns:** one of `"board"`, `"modal"`, or `"menu"`.
 
 **Algorithm (three stages):**
-1. Menu check (line ~138): if `mean(gray) >= 160`, return `"menu"`.
-2. Center-vs-ring ratio (line ~149): compute mean brightness in the inner
+1. Menu check (line ~180): if `mean(gray) >= 160`, return `"menu"`.
+2. Center-vs-ring ratio (line ~222): compute mean brightness in the inner
    center box (30–70 % x 30–70 %) and in the surrounding ring (10–90 %
    minus the center).  If `center / ring >= 2.0`, return `"modal"`.
-3. Default (line ~186): return `"board"`.
+3. Default (line ~227): return `"board"`.
 
 ---
 
@@ -67,7 +67,7 @@ Threshold: **2.0** (midpoint of the ~3x gap: board max 1.11, modal min 3.10).
 
 ---
 
-## Threshold constants (all at module level, lines 49–67)
+## Threshold constants (all at module level, lines 89–112)
 
 | Constant | Value | Purpose |
 |----------|-------|---------|

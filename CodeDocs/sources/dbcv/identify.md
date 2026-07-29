@@ -120,7 +120,7 @@ was *not* enough (it over-identified); the adopted fix was to domain-fine-tune i
 
 ## Embedding-NN identifier (Stage 2, adopted default)
 
-### `classify_crop_embedding(card_crop, embedder, embed_gallery) -> (identity, role_class, confidence)` (line ~407)
+### `classify_crop_embedding(card_crop, embedder, embed_gallery) -> (identity, role_class, confidence)` (line 409)
 ```python
 def classify_crop_embedding(
     card_crop: np.ndarray,
@@ -139,8 +139,9 @@ Cosine nearest-neighbor over the embedding gallery, using the **fine-tuned** bac
 
 **Why a margin, not an absolute cosine (changed 2026-06-22).** The served backbone is
 domain-fine-tuned (Proxy-Anchor LP-FT), which **compressed the absolute cosine scale** — a
-correct match now sits ~0.6 and an unrelated prototype ~0.4 — so the old absolute cutoff
-(`_EMBED_CONFIDENCE_THRESHOLD = 0.60`) no longer separates matches from non-matches and
+correct match now sits ~0.6 and an unrelated prototype ~0.4 — so the since-removed absolute
+cutoff (`_EMBED_CONFIDENCE_THRESHOLD = 0.60`; no longer in the code — do not grep for it)
+no longer separated matches from non-matches and
 over-identified **125/125** real cards. The top1−top2 margin does separate them: a decisive
 match pulls clearly ahead of the runner-up, while a face-down / ambiguous crop sits roughly
 equidistant from several prototypes (small margin) → "unknown". The returned `confidence`
@@ -158,7 +159,7 @@ classical↔embedding agreement rose 27 → 90 after the fine-tune. The syntheti
 is optimistic (augmented reference art, not real crops); real-frame generalisation beyond the
 confident few is the open round-2 lever.
 
-### `make_embedding_identifier(embedder, embed_gallery) -> Callable` (line ~490)
+### `make_embedding_identifier(embedder, embed_gallery) -> Callable` (line 490)
 Bridges `classify_crop_embedding` into the 1-arg pipeline interface.
 Used by the API lifespan to make the default identifier.
 

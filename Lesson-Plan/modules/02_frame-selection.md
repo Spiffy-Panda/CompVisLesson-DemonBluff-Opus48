@@ -8,7 +8,8 @@
 2. Describe the three-class frame-state gate (`board` / `modal` / `menu`) and why it runs before the localizer.
 3. Walk through the center-vs-ring brightness ratio, explain why the earlier absolute-brightness approach failed on Demon Bluff's dark-background modals, and identify the invariant that the ratio exploits.
 4. Read `src/dbcv/frame_state.py` and predict which class a novel frame will receive.
-5. Run the gate against sample frames using `utils/python/run_pipeline.py` and interpret the `frame_state` field in the output.
+5. Read `src/dbcv/frame_select.py` and trace a frame through the shipped Stage-0 cascade: stride decode from the media's *measured* fps, dHash dedup against the last kept frame, then the gate.
+6. Run the gate against sample frames using `utils/python/run_pipeline.py` and interpret the `frame_state` field in the output.
 
 ---
 
@@ -28,7 +29,7 @@ Decode one frame every N seconds — for example, one frame every 0.5 seconds fr
 
 After stride-decoding, compute a 64-bit perceptual hash (pHash or dHash — a coarse discrete-cosine or difference hash of a downscaled, grayscale version of the frame) for each frame and drop any frame whose Hamming distance from the last kept frame is below a threshold, typically 8 bits or fewer (out of 64). The comparison cost is essentially free: Hamming distance on 64-bit integers is a single CPU instruction (`popcount`). Per the cited benchmark (MDPI Electronics 15(7):1493, 2025), perceptual hashing is the standard cheap method for near-duplicate removal and earns its keep over the stride-decode output; deep embeddings only add value under aggressive geometric transforms that do not occur in a stable screen capture.
 
-**Trade-off:** the threshold must be tuned. A threshold that is too tight will pass almost every frame (no deduplication); one that is too loose will drop frames that show a new card arrangement after a fast transition. Tuning requires labelled examples from the real footage. This step is **not yet built** in the pipeline as of this module's writing — stride decode + perceptual-hash deduplication is a known owed item, forward-referenced from the current state gate. The module teaches the design now so that implementation slot is clear.
+**Trade-off:** the threshold must be tuned. A threshold that is too tight will pass almost every frame (no deduplication); one that is too loose will drop frames that show a new card arrangement after a fast transition. An earlier draft of this module taught this step as "designed but owed" — it has since shipped as `src/dbcv/frame_select.py`, using an 8×8 **dHash** (64 bits) with the research-recommended Hamming threshold of 8, compared against the last *kept* frame. The choice of dHash over pHash is itself a lesson (see the shipped-implementation section below).
 
 ### Option C: Scene detection (content-based)
 
@@ -44,12 +45,15 @@ CLIP, BLIP, and similar vision-language models can score frames for relevance ("
 
 ## What we chose and why
 
-**A CPU-only, two-part cascade:**
+**A CPU-only, three-part cascade** — shipped as `src/dbcv/frame_select.py` (Stage 0), reusing the gate from `src/dbcv/frame_state.py`:
 
-1. **Fixed-stride decode** — the first gatekeeper; cheap, no model, gives coverage.
-2. **Frame-state gate** — a classical brightness-ratio classifier that runs on each decoded frame and decides whether to forward it to the localizer.
+1. **Fixed-stride decode** — the first gatekeeper; cheap, no model, gives coverage. The stride is derived at runtime from the container's *measured* frame rate, never from an assumed 30 or 60.
+2. **Perceptual-hash deduplication** — an 8×8 dHash per decoded frame; drop anything within Hamming distance 8 of the last kept frame.
+3. **Frame-state gate** — the classical brightness-ratio classifier that decides whether a surviving frame is forwarded to the localizer.
 
-Perceptual-hash deduplication (Option B) is designed and owed; it goes between stride decode and the gate. Scene detection (Option C) is reserved for offline dataset work. Foundation models (Option D) are dev-only.
+Scene detection (Option C) is reserved for offline dataset work. Foundation models (Option D) are dev-only.
+
+**Positioning: dev/batch only, never the REST path.** The selector decodes whole videos, which the runtime budget forbids per request — the REST service (Module 08) receives a single already-selected frame. `frame_select.py` exists to build datasets and drive batch analysis, and its module docstring says so explicitly.
 
 The gate is grounded in the same research entry (entry 1 of `research/RESEARCH.md`), specifically the finding that "a separate cheap board-gate is still needed" because scene-cut detection does not answer the board-vs-modal question.
 
@@ -150,18 +154,38 @@ Sample1_003_t00460s                 state=board    cards=8  Wretch@0.65 ...
 
 The overlay PNGs (written to `dataset/pipeline-out/` when `--overlay` is passed) show a coloured `frame_state=board` or `frame_state=modal` banner in the top-left corner. This is the same `draw_overlay` function in `utils/python/run_pipeline.py`.
 
+To exercise the full Stage-0 selector (stride + dedup + gate) without touching the large raw videos, run its test suite — the integration tests build small synthetic videos on the fly:
+
+```
+# Windows:
+PYTHONPATH=src .venv\Scripts\python.exe -m pytest tests/test_frame_select.py -v
+```
+
+From batch code, the entry points are `select_frames(video_path)` (metadata only, constant memory) and `iter_selected_frames(video_path)` (streams pixels alongside each kept-frame record) in `src/dbcv/frame_select.py`. Remember the positioning: this is a dev/batch tool for dataset building — never wire it into the REST path.
+
 ---
 
-## What is not yet built
+## The shipped Stage-0 selector: reading `src/dbcv/frame_select.py`
 
-**Stride decode and perceptual-hash deduplication** (`select_frames`) are designed but not yet implemented in `src/`. The pipeline currently operates on a pre-sampled set of PNGs in `dataset/frames/`. The owed work is:
+An earlier draft of this module ended with a "what is not yet built" section listing stride decode and dedup as owed work. That work shipped, and — a small course victory — the implementation matches the design that section sketched, with two instructive deviations noted below. The module now teaches the real code.
 
-- Read the video's real frame rate from `ffprobe` metadata (never from a constant).
-- Decode at a configurable stride (default: 1 frame / 2 fps equivalent).
-- Compute a pHash for each decoded frame and compare against the last kept frame's hash by Hamming distance; discard near-duplicates (Hamming distance ≤ 8 out of 64).
-- Pass survivors to the gate.
+### The cascade, in code order
 
-When that step is built, it will live in `utils/python/` per Rule 1's promotion rule, and it will be pointed at by the hands-on section of this module.
+**1. Measure the media; never assume it.** `read_media_info()` returns a `MediaInfo(width, height, fps, fps_source)` read entirely at runtime: resolution from `cv2.VideoCapture` properties, fps from OpenCV first, then `ffprobe` (parsing `avg_frame_rate` from the container's JSON metadata) if OpenCV reports nothing sane, then — only as a last resort — a documented fallback constant. The `fps_source` field (`"opencv"` / `"ffprobe"` / `"fallback"`) records *where* the number came from, so a fallback is visible in the output rather than silently absorbed. On both sample videos the measured answer is 60.0 fps at 1920×1080 — measured, not assumed.
+
+**2. Derive the stride from the measured fps.** `stride_for_fps(media_fps, target_fps=1.5)` returns `round(media_fps / target_fps)`, clamped to ≥ 1. The target of ~1.5 fps sits in the research entry's 1–2 fps band. For the 60 fps samples this yields a stride of 40 — decode every 40th frame. `iter_strided_frames()` then decodes sequentially (`cap.read()` and skip — no per-frame random seeking, which is slow and unreliable on long files) and computes each timestamp as `frame_index / fps` rather than trusting per-frame container timestamps.
+
+**3. dHash dedup against the last *kept* frame.** `dhash()` converts to grayscale, resizes to a 9×8 grid, compares each pixel to its right-hand neighbour, and packs the 64 booleans into one integer. `hamming()` is a single XOR + popcount. `dedup_hashes()` / `iter_selected_frames()` keep a frame only if its distance to the most recently *kept* frame exceeds 8 — comparing against the last kept frame (not the immediately preceding one) collapses a long run of slowly-drifting near-duplicates (an idle board) into a single kept frame.
+
+**4. Gate the survivors.** Each kept frame goes through `classify_frame_state()` — the same gate taught above, reused, not reimplemented. With `board_only=True` (the dataset-building default) only `"board"` frames are emitted; non-board frames still update the dedup anchor so a modal→board transition is not masked. The batch entry point `select_frames()` returns `SelectedFrame(frame_index, timestamp_s, state, dhash)` records without pixels (constant memory over an hour of video); `iter_selected_frames()` streams `(record, pixels)` pairs for callers that save crops.
+
+### Two design deviations worth noticing
+
+**dHash, not pHash.** The draft design said pHash; the shipped code uses dHash. Both are endorsed by the cited benchmark. dHash won because it needs only `cv2` + `numpy` (no DCT, no `imagehash` dependency), and because it encodes the *sign* of the horizontal brightness gradient — invariant to the global brightness/contrast shifts (fades, tooltip dimming) common between near-identical game frames, while still flipping bits when card art or panels actually change. The 9×8 hash grid is the hash's own internal representation, not a frame-resolution assumption.
+
+**OpenCV-first fps, ffprobe as fallback.** The draft said "read the frame rate from ffprobe"; the shipped code asks the already-open `cv2.VideoCapture` first and reaches for `ffprobe` only when OpenCV's answer is missing or absurd. Same principle (measure, never assume), cheaper common path.
+
+The selector is covered by **23 tests** in `tests/test_frame_select.py` — hash properties (determinism, resolution-independence, near-duplicate vs. distinct behaviour on real sample frames), Hamming distance, stride math, dedup semantics (including keep-against-last-kept), media-info reading, and full-cascade integration on small synthetic videos.
 
 ---
 
@@ -173,7 +197,9 @@ When that step is built, it will live in `utils/python/` per Rule 1's promotion 
 
 **The menu gate is barely validated.** The 160/255 full-frame brightness threshold has not been tested against menu or loading screen frames from these videos; the labeled set contained none. This gate catches obviously light screens but could miss a dark-themed loading screen or be tripped by an unusually bright board frame at game start.
 
-**Perceptual-hash dedup is owed.** Until stride decode + deduplication is built, the pipeline processes every frame in `dataset/frames/` regardless of whether it is a duplicate of the previous one. This does not affect correctness (the gate still fires correctly on duplicates) but it does mean the identification stage processes redundant frames and the overall throughput is lower than it needs to be.
+**The Hamming threshold is a policy knob, tuned once.** The shipped threshold of 8 comes from the cited benchmark's near-duplicate boundary, validated on this footage's sample frames — not from a large labelled sweep. Too tight and idle-board runs leak through (wasted downstream compute); too loose and a fast state change lands within 8 bits of the previous board and gets dropped (a *missed* state, which is worse). Because dedup compares against the last *kept* frame, a dropped transition frame also shifts the anchor, so an error can propagate for a few frames. If a state change ever goes missing from a batch run, this threshold is the first suspect.
+
+**The fps fallback is a degraded mode, not a feature.** If neither OpenCV nor ffprobe can report a frame rate, the selector falls back to an assumed constant so a batch run degrades instead of crashing — but every derived timestamp and the effective stride are then wrong in proportion. The `fps_source="fallback"` field on `MediaInfo` exists precisely so this condition is visible; a caller that ignores it inherits silent timestamp drift.
 
 ---
 
