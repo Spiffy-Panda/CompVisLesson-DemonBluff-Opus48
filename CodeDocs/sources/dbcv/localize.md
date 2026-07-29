@@ -2,7 +2,8 @@
 
 **Status:** integrated / validated — classical localizer promoted from spike;
 HUD-zone fix landed 2026-07-29 (plans/PLAN-live-capture.md, Fix 1) from the
-two live-frame evals.
+two live-frame evals; background-totem HUD-zone fix landed 2026-07-29
+(eval_04, see below).
 
 **Purpose:** Defines the localizer interface, the stub teaching baseline, and
 the classical implementation validated on real Demon Bluff sample frames.
@@ -18,13 +19,13 @@ the classical implementation validated on real Demon Bluff sample frames.
 
 ## Key signatures (with line numbers)
 
-### Type alias `BboxRel` — line 74
+### Type alias `BboxRel` — line 212
 ```python
 BboxRel = tuple[float, float, float, float]
 # (x, y, w, h) in [0, 1], relative to frame width/height, origin top-left
 ```
 
-### `class LocalizerCallable(Protocol)` — line 83
+### `class LocalizerCallable(Protocol)` — line 221
 ```python
 class LocalizerCallable(Protocol):
     def __call__(
@@ -34,7 +35,7 @@ class LocalizerCallable(Protocol):
 Structural (Protocol) typing so any callable with this signature qualifies —
 no inheritance required.
 
-### `stub_localize(image, resolution) -> list[BboxRel]` — line 117
+### `stub_localize(image, resolution) -> list[BboxRel]` — line 255
 ```python
 def stub_localize(image: np.ndarray, resolution: Resolution) -> list[BboxRel]:
 ```
@@ -52,7 +53,7 @@ delta between "no vision" and "real detection".  Pass explicitly as
 ]
 ```
 
-### `classical_localize(image, resolution) -> list[BboxRel]` — line 188
+### `classical_localize(image, resolution) -> list[BboxRel]` — line 288
 ```python
 def classical_localize(image: np.ndarray, resolution: Resolution) -> list[BboxRel]:
 ```
@@ -115,6 +116,61 @@ the *identification*-side reliability drop instead.
 
 Tests: `tests/test_localize.py` (synthetic-frame HUD-zone masking + recall
 regression checks, resolution-agnostic).
+
+---
+
+## Background-totem HUD-zone fix (2026-07-29, eval_04)
+
+`eval_04` (352 `collect_03` board frames) found two fixed **background-art**
+skull/bone totem props — not cards — being localized as card-shaped
+contours in the large majority of frames: left totem (bottom-left) in 93.3%
+of frames (321/344, misidentified as Hunter/Wretch 11×), right totem
+(top-right) in 95.3% of frames (328/344, misidentified as Hunter/Rambler
+35× — the eval's largest single confusion cluster, matching its "Hunter
+26x, conf 0.50-0.67" finding exactly).
+
+`HUD_ZONES` gained two more entries, **Stage 4 (geometric) only**:
+
+| Zone | Fractions (x, y, w, h) | Covers |
+|------|------------------------|--------|
+| left skull/bone totem | `(0.15, 0.56, 0.07, 0.16)` | Bottom-left background totem pillar |
+| right skull/bone totem | `(0.78, 0.18, 0.08, 0.22)` | Top-right background totem pillar |
+
+The top-right revealed-evils badge zone was also **widened 0.86 → 0.84**
+(both Stage 1 and Stage 4) after confirming no real card box in that y-band
+(y < 0.36) ever reaches past x=0.695 — 0.145 of clear headroom.
+
+**Fragmentation gotcha (why the totem zones are Stage-4-only, unlike the
+corner zones above):** an earlier version of this fix also pixel-zeroed the
+totem rectangles in Stage 1. Re-scoring showed that **split the totem's
+colour blob into two side slivers**, each individually under the 40%
+overlap threshold — residual hit rate only fell to 14.8% and the
+misidentified count went *up* (11→26). A totem sits away from the frame
+edge as one isolated blob, so zeroing a sub-rectangle out of its middle
+splits it; the corner HUD zones don't have this problem because they sit
+flush against a frame edge (trimming an edge strip can only shrink a blob,
+never split it). Fix: leave the totem blob intact through Stage 1, exclude
+it geometrically in Stage 4 only. See `dbcv/localize.py`'s module docstring
+("Background-totem phantom-box fix") for the full derivation, safety
+verification against every board shape (incl. nonagon/decagon — the tightest
+real-card margin found was 0.016, from a blood-splatter-inflated Twin-Minion
+execution box), and the fragmentation write-up.
+
+**Shipped result** (`scrap_scripts/python/13_eval_collect03b_classical.py`,
+full 344-board-frame re-run, classical arm): left/right totem hit rate
+93.3%/95.3% → 0.6%/0.9%, **zero** misidentified totem hits remaining (down
+from 11 and 35), mean (predicted − ground-truth) card count per frame
+2.20 → 0.16 averaged across board shapes (decagon 2.50→0.50, heptagon
+2.17→0.17, hexagon 2.25→0.25, nonagon 2.00→−0.25, octagon 2.08→0.15).
+
+Tests: `tests/test_localize.py` (totem-zone masking, widened-badge-zone
+masking, and real-card-near-zone recall checks using ground_truth.json's
+nonagon/decagon slot coordinates).
+
+Reproduce: `scrap_scripts/python/12_totem_zone_check.py` (zone
+derivation/coverage/safety, against pre-fix eval_04 data) and
+`scrap_scripts/python/13_eval_collect03b_classical.py` (full before/after
+re-run → `scrap_scripts/python/out/eval_04b/`).
 
 ### Removed: the `localize` module-level alias
 The former `localize = classical_localize` alias (bottom of file) was removed

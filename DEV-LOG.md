@@ -16,6 +16,35 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-07-29 — Background-totem phantom-box fix (`localize.py`, eval_04)
+
+**Context:** `scrap_scripts/python/out/eval_04` (352 `collect_03` live board frames, run by a concurrent crop-mining session) found two *fixed background-art* skull/bone totem props — not cards — being localized as card boxes in the large majority of frames: a bottom-left totem (rel centre ≈(0.18, 0.64)) hit 93.3% of the 344 board frames (321/344, misidentified as Hunter/Wretch 11×), and a top-right totem (≈(0.82, 0.29)) hit 95.3% (328/344, misidentified as Hunter/Rambler 35× — the eval's single largest confusion cluster, matching its reported "Hunter@0.50-0.67, 26×" finding exactly once cross-checked against the raw per-frame JSON). Also flagged: the top-right revealed-evils badge zone (`0.86` start) had unconfirmed headroom to widen to `0.84`.
+
+**Verification before touching code:** did not take the eval's recommended zone fractions on faith. Wrote `scrap_scripts/python/12_totem_zone_check.py` to re-derive the totem bbox envelopes directly from `eval_04/full_classical`'s 344 per-frame JSONs, check the recommended zones (`(0.15-0.22, 0.56-0.72)`, `(0.78-0.86, 0.18-0.40)`) against **every** localizer box across all board frames (not just the 29 hand-labeled ground-truth ones), and cross-checked against `ground_truth.json`'s hand-built slot coordinates for every board shape including the two largest (nonagon, decagon). Result: zero non-totem box overlaps either zone at all; real-card centre-x never goes below 0.305 or above 0.692 in any shape. One close call worth flagging for the next person: a **blood-splatter-inflated Twin-Minion execution-reveal box** (frame 196) reaches left edge x≈0.236 — only 0.016 clear of the left zone's x=0.22 edge, the tightest margin found in this fix, and the reason the zone was NOT widened further to "clean up" the totem's full observed envelope (0.131-0.264). Confirmed visually (not just numerically) against `043_overlay.png` (Kill Mode — both totems clearly visible as red skull-topped pillars under the false boxes) and `140_overlay.png`/`019_overlay.png` (decagon/octagon, ordinary lighting). Badge-zone widen to 0.84 checked the same way: no non-totem box in the badge strip's y-band ever reaches past x=0.695 — 0.145 of headroom, not just "trivially" safe.
+
+**Choice:** added two new `HUD_ZONES` entries, `(0.15, 0.56, 0.07, 0.16)` and `(0.78, 0.18, 0.08, 0.22)`, plus widened the top-right badge zone `0.86 → 0.84` (both Stage 1 and Stage 4).
+
+**A real bug found mid-fix (important lesson):** the first version of this fix also pixel-zeroed the two totem rectangles in Stage 1, mirroring how the existing corner HUD zones work. Re-running the actual pipeline (`scrap_scripts/python/13_eval_collect03b_classical.py`, not just the static-JSON coverage check) showed that was **wrong**: the residual left-totem hit rate only fell to 14.8% (not near-zero) and the *misidentified* hit count went **up**, 11→26. Cause: a totem sits away from the frame edge as one isolated colour blob. Zeroing only the zone's narrower sub-rectangle out of the *middle* of that blob **splits it into two smaller side slivers** (totem-left-of-zone, totem-right-of-zone), and each sliver individually falls under the 40%-overlap-of-own-area exclusion threshold — strictly worse than doing nothing on that axis, since the original single whole-blob box would have failed that same 40% test as a whole. The corner HUD zones don't hit this failure mode because they sit flush against a frame edge — trimming an edge strip can only shrink a blob, never split it in two. **Fix:** leave the totem's full blob intact through Stage 1 (no pixel zeroing for the totems specifically) and rely on Stage 4's geometric exclusion only, which matches how the zone was originally validated (single whole-blob box vs. zone) and restored the expected suppression. This is the kind of thing that only shows up by re-running the *actual* pipeline end-to-end after a fix, not by re-checking coverage against the pre-fix JSON snapshots alone — worth remembering for the next HUD-zone fix.
+
+**Results** (`scrap_scripts/python/13_eval_collect03b_classical.py`, full 344-board-frame re-run, classical arm, written to `scrap_scripts/python/out/eval_04b/`):
+
+| metric | before | after |
+|---|---|---|
+| left-totem hit rate | 93.3% (321/344) | 0.6% (2/344) |
+| right-totem hit rate | 95.3% (328/344) | 0.9% (3/344) |
+| left-totem misidentified | 11 | 0 |
+| right-totem misidentified | 35 | 0 |
+| mean (pred − gt) card count, overall | 2.20 | 0.16 |
+| mean (pred − gt), decagon / heptagon / hexagon / nonagon / octagon | 2.50 / 2.17 / 2.25 / 2.00 / 2.08 | 0.50 / 0.17 / 0.25 / −0.25 / 0.15 |
+
+The 5 residual totem hits remaining across both zones are all confidence ≤0.09 ("unknown" or near-zero) — noise that abstains regardless. The nonagon shape's small negative post-fix mean (−0.25) is **not a regression**: `scrap_scripts/python/15_inspect_shape_deltas.py` traced it to frame 109, which was already missing 2 real cards *before* this fix — its old pred==gt count was a coincidence (2 real misses cancelled by the 2 totem phantom boxes), not evidence the localizer was working correctly there. That pre-existing miss is out of scope for this fix (a `identify.py`/gallery concern or a separate localizer gap, not investigated further here).
+
+**Why:** the eval's own recommended zones were directionally right and passed every static safety check; the only thing that needed correcting was *how* to apply them (geometric-only, not pixel-zeroing) — discovered empirically, not assumed.
+
+**Notes / risks:** `identify.py`/`embed.py` untouched per this session's brief (a concurrent crop-mining session was using `eval_04`'s outputs read-only). Tests added to `tests/test_localize.py`: totem-zone masking (both totems), the widened-badge-zone boundary specifically, and real-card recall at the two closest-margin positions found during verification (nonagon/decagon slots nearest each new zone, taken from `ground_truth.json`). Full suite: 129 passed, 25 skipped (baseline 123 passed/25 skipped + 6 new tests). See `src/dbcv/localize.py`'s module docstring ("Background-totem phantom-box fix") for the complete derivation and `CodeDocs/sources/dbcv/localize.md` for the synced overview.
+
+---
+
 ## 2026-07-29 — Live-eval fix wave: HUD-zone widen + classical/embedding ensemble; gate prototype; margin recal deferred
 
 **Context:** The two same-day live-frame evals below (`eval_01`, `eval_02`) left a ranked fix list. This session implements it: `plans/PLAN-live-capture.md` (new slug, indexed in `PLAN.md`) covers the full write-up; this entry is the summary.

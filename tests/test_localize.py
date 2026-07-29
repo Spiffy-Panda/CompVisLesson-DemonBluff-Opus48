@@ -1,7 +1,7 @@
 """
 tests/test_localize.py — Unit tests for the classical card localizer.
 
-Covers two things not exercised elsewhere:
+Covers three things not exercised elsewhere:
   1. The classical/stub interface contract (basic shape/format checks).
   2. The 2026-07-29 live-eval HUD-zone fix (plans/PLAN-live-capture.md,
      Fix 1) — synthetic frames with a colourful blob dropped at a known
@@ -12,6 +12,13 @@ Covers two things not exercised elsewhere:
          slot, whose top edge can sit high in frame (the exact case the
          "don't just widen the full-width top band" warning is about) — is
          still found.
+  3. The 2026-07-29 eval_04 background-totem phantom-box fix (see
+     dbcv/localize.py module docstring, "Background-totem phantom-box fix")
+     — synthetic blobs at the two measured totem positions are masked, the
+     widened top-right badge zone (0.86 -> 0.84) is exercised directly, and
+     blobs at real card positions closest to the new zones (including the
+     largest nonagon/decagon boards, taken from
+     scrap_scripts/python/out/eval_04/ground_truth.json) are still found.
 
 All frames here are synthetic (drawn with cv2, never loaded from the sample
 videos or dataset/), so these tests run unconditionally — no skip needed.
@@ -258,3 +265,128 @@ def test_classical_localize_never_asserts_on_matching_resolution(w: int, h: int)
     img = _blank_frame(w=w, h=h)
     boxes = classical_localize(img, Resolution(w=w, h=h))
     assert isinstance(boxes, list)
+
+
+# ---------------------------------------------------------------------------
+# Background-totem phantom-box fix (2026-07-29, eval_04)
+# ---------------------------------------------------------------------------
+#
+# scrap_scripts/python/out/eval_04 (352 collect_03 board frames) found two
+# fixed skull/bone totem props painted into the board background were being
+# localized as card boxes in 93.3% / 95.3% of frames, sometimes with a
+# confident-but-wrong identity (Hunter up to 0.67, Wretch up to 0.55).  See
+# the "Background-totem phantom-box fix" section of dbcv/localize.py's
+# module docstring for the exact zone derivation and safety verification.
+
+
+def test_left_totem_blob_is_masked() -> None:
+    """A blob at the measured left totem position (0.15-0.22, 0.56-0.72) is dropped.
+
+    Stands in for the skull/bone totem pillar in the board's bottom-left
+    background art -- localized as a card in 93.3% of eval_04's 344 board
+    frames (321/344), sometimes misidentified as Hunter (conf up to 0.55)
+    or Wretch (conf up to 0.43).
+    """
+    img = _blank_frame()
+    target = (0.16, 0.58, 0.05, 0.12)   # fully inside (0.15, 0.56, 0.07, 0.16)
+    _draw_blob_rel(img, *target)
+    boxes = _run(img)
+    assert not _any_box_overlaps(boxes, target), (
+        f"Blob at the left totem position was NOT masked: {boxes}"
+    )
+
+
+def test_right_totem_blob_is_masked() -> None:
+    """A blob at the measured right totem position (0.78-0.86, 0.18-0.40) is dropped.
+
+    Stands in for the skull/bone totem pillar in the board's top-right
+    background art -- localized as a card in 95.3% of eval_04's 344 board
+    frames (328/344); the largest single confusion cluster in the eval
+    (Hunter, 26x, conf up to 0.67).
+    """
+    img = _blank_frame()
+    target = (0.79, 0.20, 0.05, 0.15)   # fully inside (0.78, 0.18, 0.08, 0.22)
+    _draw_blob_rel(img, *target)
+    boxes = _run(img)
+    assert not _any_box_overlaps(boxes, target), (
+        f"Blob at the right totem position was NOT masked: {boxes}"
+    )
+
+
+def test_widened_badge_zone_masks_x_from_084() -> None:
+    """The top-right badge zone's widened left edge (0.86 -> 0.84) is exercised directly.
+
+    A blob at x=0.845 sits inside the new [0.84, 1.00) badge-strip range but
+    would have survived under the old 0.86 boundary -- this is a regression
+    guard specifically for the eval_04 widening, verified safe because no
+    real-card box in the badge strip's y-band (y < 0.36) ever reaches past
+    x=0.695 (scrap_scripts/python/12_totem_zone_check.py).
+    """
+    img = _blank_frame()
+    target = (0.845, 0.05, 0.05, 0.10)   # inside (0.84, 0, 0.16, 0.36), outside old (0.86, ...)
+    _draw_blob_rel(img, *target)
+    boxes = _run(img)
+    assert not _any_box_overlaps(boxes, target), (
+        f"Blob in the widened badge-zone band (x>=0.84) was NOT masked: {boxes}"
+    )
+
+
+def test_real_card_nearest_left_totem_zone_is_still_found() -> None:
+    """The real card slot with the closest y-band overlap to the left totem zone is still found.
+
+    Taken from ground_truth.json: nonagon frame 291, slot 6, pixel centre
+    (427, 481) on a 1280x720 frame -> relative centre (0.334, 0.668).  Its
+    y sits inside the left totem zone's y-band (0.56-0.72) but its x is
+    0.114 clear of the zone's right edge (0.22) -- the closest real-card
+    stress case for this zone across every board shape in eval_04.
+    """
+    img = _blank_frame()
+    cx, cy = 427 / 1280, 481 / 720
+    card_w, card_h = 0.072, 0.153   # typical classical_localize card bbox size
+    target = (cx - card_w / 2, cy - card_h / 2, card_w, card_h)
+    _draw_blob_rel(img, *target)
+    boxes = _run(img)
+    assert _any_box_overlaps(boxes, target, min_iou=0.2), (
+        f"Real card slot nearest the left totem zone (nonagon frame 291 slot 6) "
+        f"was masked: {boxes}"
+    )
+
+
+def test_real_card_nearest_right_totem_zone_is_still_found() -> None:
+    """The real card slot with the closest y-band overlap to the right totem zone is still found.
+
+    Taken from ground_truth.json: decagon frame 140, slot 2, pixel centre
+    (874, 280) on a 1280x720 frame -> relative centre (0.683, 0.389).  Its
+    y sits inside the right totem zone's y-band (0.18-0.40) but its x is
+    0.097 clear of the zone's left edge (0.78) -- the closest real-card
+    stress case for this zone across every board shape in eval_04, and the
+    largest (10-card) board shape sampled.
+    """
+    img = _blank_frame()
+    cx, cy = 874 / 1280, 280 / 720
+    card_w, card_h = 0.072, 0.153
+    target = (cx - card_w / 2, cy - card_h / 2, card_w, card_h)
+    _draw_blob_rel(img, *target)
+    boxes = _run(img)
+    assert _any_box_overlaps(boxes, target, min_iou=0.2), (
+        f"Real card slot nearest the right totem zone (decagon frame 140 slot 2) "
+        f"was masked: {boxes}"
+    )
+
+
+def test_nonagon_rightmost_card_slot_is_still_found() -> None:
+    """The rightmost real card slot on the largest boards is clear of the right totem zone.
+
+    Taken from ground_truth.json: nonagon frame 291, slot 2, pixel centre
+    (883, 313) -> relative centre (0.690, 0.435), the rightmost card centre
+    measured across nonagon/decagon boards in eval_04.
+    """
+    img = _blank_frame()
+    cx, cy = 883 / 1280, 313 / 720
+    card_w, card_h = 0.072, 0.153
+    target = (cx - card_w / 2, cy - card_h / 2, card_w, card_h)
+    _draw_blob_rel(img, *target)
+    boxes = _run(img)
+    assert _any_box_overlaps(boxes, target, min_iou=0.2), (
+        f"Rightmost nonagon card slot was masked: {boxes}"
+    )

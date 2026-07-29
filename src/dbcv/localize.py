@@ -93,6 +93,106 @@ classical HSV matcher has a Hunter->Poisoner confusion that recurs wherever a
 revealed Hunter card happens to sit.  No HUD zone or guard was added for it;
 doing so would blind the localizer to real cards.  See
 ``plans/PLAN-live-capture.md`` for the frame-by-frame evidence.
+
+Background-totem phantom-box fix (2026-07-29, ``scrap_scripts/python/out/eval_04``)
+------------------------------------------------------------------------------------
+`eval_04` (352 board frames, ``collect_03``) found two fixed **background-art
+props** — skull/bone totem pillars painted into the board background, not
+cards — being localized as card-shaped contours in the large majority of
+frames:
+
+1. **Left totem** (bottom-left, ~x 0.13-0.26, ~y 0.50-0.77 of frame) — hit in
+   93.3% of the 344 board frames scanned (321/344). Usually abstains
+   ("unknown"), but misidentifies as Hunter (4x, conf 0.52-0.55) or Wretch
+   (7x, conf 0.40-0.43) often enough to pollute the identification stream.
+2. **Right totem** (top-right, ~x 0.72-0.86, ~y 0.14-0.41 of frame) — hit in
+   95.3% of frames (328/344), and misidentifies far more often: Hunter
+   (26x, conf 0.50-0.67) and Rambler (9x) — the largest single confusion
+   cluster in the eval.
+
+Both totems are most visible (highest colour saturation, easiest to confirm
+by eye) in Kill-Mode frames, where the whole board gets a red tint that
+happens to push the stone/skull totem art into the same HSV range as real
+card borders — but the phantom boxes fire on ordinary non-Kill-Mode frames
+too, just slightly less saturated. Confirmed visually against
+``full_classical/043_overlay.png`` (Kill Mode, both totems clearly visible
+as red skull-topped pillars under the false boxes) and
+``full_classical/140_overlay.png`` / ``019_overlay.png`` (decagon and
+octagon boards, ordinary lighting, same props visible at the same
+positions).
+
+**Zones added** (see ``HUD_ZONES`` below, Stage 4 only — see the "why
+geometric-only" note in Stage 1's comments):
+``(0.15, 0.56, 0.07, 0.16)`` (left totem) and ``(0.78, 0.18, 0.08, 0.22)``
+(right totem). Verified against every localizer box produced across all 344
+``eval_04`` board frames (not just the 29 hand-labeled ground-truth frames):
+**zero** non-totem boxes overlap either zone at all — the closest is a
+0.4%-of-its-own-area graze from the (unrelated, out-of-scope) Kill-Mode
+timer/health HUD blob near the right zone. Cross-checked against
+``ground_truth.json``'s hand-built slot coordinates across every board shape
+including the two largest (nonagon, decagon): the real-card centre-x column
+never goes below 0.305 (left column) or above 0.692 (right column) in any
+shape, leaving wide margin either side of both new zones. A closer look at
+one nonagon frame (099) also found a *real* card box (a Twin-Minion reveal
+with a blood-splatter execution effect, frame 196) whose splatter-inflated
+bounding box reaches left edge x≈0.236 — only 0.016 clear of the left zone's
+x=0.22 edge, the tightest margin found anywhere in this fix; this is why the
+zone was kept at its originally-recommended width rather than widened
+further (see the fragmentation note below for why it didn't need to be).
+Coverage: the two zones (via the standard >40%-of-box-area overlap rule)
+suppress 319/321 (99.4%) left-totem hits and 325/328 (99.1%) right-totem
+hits *as measured against the original, unfragmented blob shapes* — see
+below for why the *shipped* fix does even better than that (0.6% / 0.9%
+residual).
+
+**Why Stage-4-only, not Stage-1 pixel zeroing (a fragmentation gotcha)**:
+an earlier version of this fix also zeroed the two totem rectangles in
+Stage 1 (like the corner HUD zones do). Re-running
+``scrap_scripts/python/13_eval_collect03b_classical.py`` against that
+version showed the residual left-totem hit rate only dropped to 14.8% (not
+near-zero) and the *misidentified* count went **up** (11→26) — worse than
+doing nothing on that axis. Cause: a totem sitting away from the frame edge
+is one isolated colour blob; zeroing only the zone's sub-rectangle out of
+the middle of it **splits** the blob into two smaller side slivers (the
+part of the totem to the left of the zone and the part to the right), and
+each sliver individually has *less* than 40% overlap with the (narrower)
+zone, so *neither* gets excluded — a strictly worse outcome than leaving
+the totem as one whole blob and letting the single resulting box fail the
+40% overlap test as a whole. The corner HUD zones (top-left, top-right)
+don't hit this failure mode because they sit flush against a frame edge:
+trimming a frame-edge strip can only shrink a blob, never split it into two
+disconnected pieces. The fix: leave the totem's full blob intact through
+Stage 1 (no pixel zeroing) and rely on Stage 4's geometric exclusion only,
+which is how the zone was originally validated (single whole-blob box vs.
+zone) and matches the >99% coverage measured above.
+
+**Shipped result** (``scrap_scripts/python/13_eval_collect03b_classical.py``,
+full re-run of all 344 board frames, classical arm): left-totem hit rate
+93.3%→0.6% (321/344→2/344), right-totem hit rate 95.3%→0.9% (328/344→3/344),
+**zero** misidentified totem hits remaining on either side (down from 11 and
+35) — the 5 residual hits left across both zones are all confidence ≤0.09
+("unknown" or near-zero), i.e. noise that would abstain regardless. Mean
+(predicted − ground-truth) card count per frame, averaged across board
+shapes: 2.20 → 0.16 (decagon 2.50→0.50, heptagon 2.17→0.17, hexagon
+2.25→0.25, nonagon 2.00→−0.25, octagon 2.08→0.15). The nonagon frames'
+small negative post-fix mean (−0.25) is **not a regression**: frame-by-frame
+inspection (``scrap_scripts/python/15_inspect_shape_deltas.py``) confirmed
+it unmasks a pre-existing, unrelated localizer miss (frame 109 was already
+missing 2 real cards before this fix; its previous pred==gt count was a
+coincidence — 2 real misses cancelled by the 2 totem phantom boxes).
+
+**Top-right badge-zone widened** 0.86 → 0.84 (both the Stage-1 pixel mask
+and the matching ``HUD_ZONES`` entry) while re-verifying under the same
+eval: no non-totem box with y < 0.36 (the badge strip's height) ever reaches
+a left edge past x=0.695 — 0.145 of clear headroom past the new 0.84
+boundary, so the widen is safe with margin to spare, not just "trivially"
+safe.
+
+Reproduce: ``scrap_scripts/python/12_totem_zone_check.py`` (localization-only
+zone/coverage/safety checks against the pre-fix ``eval_04`` data) and
+``scrap_scripts/python/13_eval_collect03b_classical.py`` (full before/after
+re-run, writes ``scrap_scripts/python/out/eval_04b/``). See ``DEV-LOG.md``
+(2026-07-29 entry) for the full narrative including the fragmentation bug.
 """
 
 from __future__ import annotations
@@ -242,6 +342,25 @@ def classical_localize(
     both new zones with margin.  Re-run scrap_scripts/python/08_eval_collect02.py
     (extended with a full_ensemble arm) after this change for updated numbers.
 
+    Background-totem phantom-box fix (2026-07-29, eval_04, see module docstring)
+    -------------------------------------------------------------------------------
+    `eval_04` (352 collect_03 board frames) found the localizer was still
+    reporting two fixed background-art skull/bone totem props as card boxes
+    in the large majority of frames (93.3% / 95.3%), sometimes with a
+    confident-but-wrong identity (Hunter up to 0.67, Wretch up to 0.55). Two
+    new HUD_ZONES entries (geometric-only -- deliberately NOT also
+    pixel-zeroed in Stage 1; see the Stage-1 comments and module docstring
+    for the blob-fragmentation gotcha that motivated this) fixed it:
+    post-fix, left/right totem hit rate 93.3%/95.3% -> 0.6%/0.9%, zero
+    misidentified totem hits remaining (down from 11 and 35), mean
+    predicted-minus-ground-truth card count per frame 2.20 -> 0.16 averaged
+    across board shapes (full numbers, incl. per-shape breakdown, in the
+    module docstring and DEV-LOG.md). Re-run
+    scrap_scripts/python/13_eval_collect03b_classical.py (classical-only,
+    fastest) for a fresh before/after comparison, or
+    scrap_scripts/python/11_eval_collect03.py for the full three-arm
+    re-score.
+
     Art-swap note
     -------------
     The HSV thresholds below were tuned to the *current* art palette.  On an art
@@ -283,8 +402,26 @@ def classical_localize(
     #     Corner-only (not full-width/full-height) so the top-center and
     #     left-column card slots are untouched — see the module docstring's
     #     "Live-capture HUD-zone fix" section.
-    #   - Top-right corner (86-100% w, 0-36% h): the "revealed evils" badge
+    #   - Top-right corner (84-100% w, 0-36% h): the "revealed evils" badge
     #     thumbnail strip — genuine character-art HUD widget, not a card.
+    #     Widened from 86% to 84% (2026-07-29, eval_04) after confirming no
+    #     real card box ever reaches past x=0.695 in that y-band — see the
+    #     module docstring's "Background-totem phantom-box fix" section.
+    # NOTE on the two skull/bone totem props (2026-07-29, eval_04): unlike
+    # the corner HUD elements above, these are NOT pixel-zeroed here.  A
+    # totem sits away from the frame edge as one isolated colour blob, and
+    # zeroing only a sub-rectangle of it (rather than a frame-edge strip)
+    # was found to SPLIT that blob into two smaller side slivers, each of
+    # which then dodges the Stage-4 HUD_ZONES 40%-overlap-of-own-area rule
+    # individually — a regression discovered by re-running
+    # scrap_scripts/python/13_eval_collect03b_classical.py after an earlier
+    # version of this fix zeroed the totems here too (residual hit rate
+    # dropped but did not go to ~0, and misidentified-hit count went UP).
+    # Leaving the totem's full blob intact through Stage 1 and excluding it
+    # geometrically in Stage 4 (see HUD_ZONES below) matches how the
+    # zone was originally validated (single whole-blob box vs. zone,
+    # >99% suppression) and avoids the fragmentation failure mode.  See the
+    # module docstring's "Background-totem phantom-box fix" section.
     # Zeroing these strips prevents the segmentation from picking up colourful
     # UI chrome that would otherwise pass the card-colour test.
     work = image.copy()
@@ -293,7 +430,7 @@ def classical_localize(
     work[:, : int(w * 0.13)] = 0          # left score panel
     work[:, int(w * 0.92) :] = 0          # right edge icons
     work[: int(h * 0.27), : int(w * 0.27)] = 0   # top-left objective-text block (corner-only)
-    work[: int(h * 0.36), int(w * 0.86) :] = 0   # top-right revealed-evils badge strip (corner-only)
+    work[: int(h * 0.36), int(w * 0.84) :] = 0   # top-right revealed-evils badge strip (corner-only; widened 0.86->0.84, eval_04)
 
     # ------------------------------------------------------------------
     # Stage 2 — HSV colour segmentation of card regions
@@ -372,7 +509,9 @@ def classical_localize(
         (0.82, 0.78, 0.18, 0.22),   # bottom-right timer / health cluster
         (0.12, 0.72, 0.05, 0.20),   # left nomination button area
         (0.00, 0.00, 0.27, 0.27),   # top-left objective-text block (corner-only; 2026-07-29 live-eval fix)
-        (0.86, 0.00, 0.14, 0.36),   # top-right revealed-evils badge strip (corner-only; 2026-07-29 live-eval fix)
+        (0.84, 0.00, 0.16, 0.36),   # top-right revealed-evils badge strip (corner-only; widened 0.86->0.84, 2026-07-29 eval_04 fix)
+        (0.15, 0.56, 0.07, 0.16),   # left skull/bone totem prop (background, not a card; 2026-07-29 eval_04 fix)
+        (0.78, 0.18, 0.08, 0.22),   # right skull/bone totem prop (background, not a card; 2026-07-29 eval_04 fix)
     ]
 
     def _in_hud(x: float, y: float, bw: float, bh: float) -> bool:
