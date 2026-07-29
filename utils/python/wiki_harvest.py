@@ -2,6 +2,13 @@
 """
 wiki_harvest.py — fetch-once harvester for the Demon Bluff wiki.
 
+OUT OF DATE (2026-07-29): against the current wiki layout, each villager page
+harvest sweeps in ~45 images — the page's role-icon strip (an ``<Role>-Icon.png``
+for every role in the game) lands next to the actual card art and skins.
+Evidence: ``_drop-off/villager_new_harvest/`` (run also stopped partway, at
+Confessor). Needs an image filter (exclude ``*-Icon.png`` / restrict to the
+page's own art + skins) before it is safe to regenerate ``card-art/`` with.
+
 Pulls role pages (villager/minion/outcast/demon) and selected knowledge
 categories from demonbluff.wiki.gg via the MediaWiki API, caching each page
 exactly once, and downloads the per-role card art.

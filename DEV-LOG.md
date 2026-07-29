@@ -16,6 +16,30 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-07-29 — First live-frame pipeline eval: real-time on CPU, but precision/identification need work
+
+**Context:** The previous entry got live capture + input validated and a first 48-frame collection (`scrap_scripts/python/out/collect_01/`) on the ground. Nothing had yet run the actual detection pipeline against a single live frame — every number so far was from the two recorded sample videos. This session ran the full pipeline over `collect_01` and read the results honestly.
+
+**Choice:** New scrap runner `scrap_scripts/python/07_eval_collect01.py` sweeps all 48 frames through **4 arms** — {raw, title-bar-cropped} × {classical, embedding} — using `06_crop_titlebar.py` for the crop arm. Outputs land in `scrap_scripts/python/out/eval_01/` (per-frame JSON + overlay PNGs per arm, plus `summary.json`/`summary.csv`). Not promoted to `utils/` — one-shot diagnostic eval, not a script anything depends on yet (Rule 1's promotion trigger not met).
+
+**Why:** Before building anything further on top of localization/identification, we needed to know whether the pipeline — tuned entirely against recorded footage — actually works on live-captured frames, and where it breaks first if not.
+
+**Results — timing:** comfortably real-time on this CPU-only laptop: classical ~21–22 ms/frame, embedding ~31–32 ms/frame (both arms, raw and cropped, near-identical).
+
+**Results — localization:** recall is perfect on every visually spot-checked frame — the card grid is found correctly every time. Precision is the actual problem: the live in-game objective text ("Find and Execute N Evil...") sits just below the top-9% HUD mask boundary and gets misdetected as a card slot, misidentified as **"Hunter" at confidence 0.42–0.50**, in **57% of board frames**. This is a false-positive card, not a false negative — the mask needs to be wider, not smarter.
+
+**Results — identification:** unreliable on live frames. Classical spot-check on one fully-revealed board: **2/5 correct**. A revealed **Minion** misread as **Hunter @0.80** (high-confidence wrong read). A **dead Medium** (skull status overlay) misread as **Lilis** — a demon role not even in this session's deck — because the overlay corrupts the crop at exactly the post-execution moments we most need a correct read. The served embedding identifier abstains on most real cards (**17.6% non-unknown** vs classical's **37.5%**); its shipped 0.12 margin threshold is untouched by any live data and needs recalibration against labeled live crops before it can be trusted or even fairly compared to classical.
+
+**Results — Stage 0 gate:** the menu branch never fired once across all 48 frames — this game's menus are dark-themed, and the gate's `brightness > 160` heuristic assumes a bright menu, so the main menu is gated as "board" instead. Dead code on this game as currently tuned. The modal gate fared better: 4/4 correct.
+
+**Results — title-bar chrome, exonerated:** raw vs. cropped arms are byte-identical on the gate and near-identical everywhere else — the existing top-9% Stage-1 HUD mask already exceeds the ~38px OS title-bar height from the original (un-flagged) launch options, so cropping bought nothing. (This is now moot anyway — see the launch-flag fix below.)
+
+**Results — aspect ratio:** the live window during this collection was 1.53:1 raw / 1.60:1 cropped, vs. 1.778:1 (16:9) training footage. Not proven to be the cause of the dominant failures above (the HUD-mask and status-overlay issues are geometry-independent). **Important finding to carry forward:** the old capture AR was not a properly game-supported resolution — a tutorial popup rendered **partially off-screen** during this very collection run, a classic GUI-scaling symptom of an unsupported window shape. Some share of any geometry fault here belongs to the game itself at non-16:9 ARs, not just to our pipeline. Future captures standardize on true 16:9 1280×720 via the full launch-flag set `-screen-width 1280 -screen-height 720 -popupwindow -screen-fullscreen 0`, now verified borderless and exact via both the Steam launcher and the `steam://rungameid` script path (see today's RESEARCH.md update).
+
+**Ranked fix list for next session:** (1) widen the top HUD mask past the objective-text band; (2) make identification robust to status overlays (skull/dead, etc.) instead of reading straight through them; (3) recalibrate the embedding margin threshold on labeled live crops; (4) replace the brightness-based Stage-0 menu heuristic with a real menu signal for dark-themed UIs; (5) 16:9 standardization — hygiene item, already adopted via the launch flags.
+
+**Notes / risks:** Eval artifacts are `scrap_scripts/python/out/eval_01/` (gitignored, per-frame JSON + overlays for all 4 arms, `summary.json`/`summary.csv`) plus the two new scrap scripts `06_crop_titlebar.py` and `07_eval_collect01.py`. A second Python environment now exists on this machine: an agent-created `.venv` (Python 3.12, runtime-only deps) alongside the global Python 3.14 environment that ran the actual test suite — worth being deliberate about which one runs what going forward.
+
 ## 2026-07-29 — Live capture + input stack validated end-to-end; first live frame collection
 
 **Context:** Everything so far has run against the two recorded sample videos. Touching the *live, running* game needs its own capture and input path, validated before anything gets built on top of it.
