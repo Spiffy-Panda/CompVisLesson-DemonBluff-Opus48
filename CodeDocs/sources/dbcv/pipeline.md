@@ -1,18 +1,21 @@
 # CodeDocs/sources/dbcv/pipeline.md
 
 **Status:** active — Stage 0 gate wired in (frame_state); default localizer
-is `classical_localize`; schema version bumped to 0.2.0.
+is `classical_localize`; schema version bumped to 0.2.0. **2026-07-29:**
+added Kill-Mode red-tint confidence discount (plans/PLAN-live-capture.md
+Fix 1).
 
 **Purpose:** Orchestrates the frame → GameStateSnapshot pipeline.  Runs
 the frame-state gate first; non-board frames skip localisation and return
 `cards=[]` immediately.  For board frames: reads resolution from `image.shape`,
-calls the localizer, crops each box, calls the identifier, and assembles the
-snapshot.
+calls the localizer, crops each box, calls the identifier, discounts
+confidence under Kill-Mode red tint if detected, and assembles the snapshot.
 
 **Who uses it:**
 - `dbcv/api.py` — calls `run_pipeline(image, source)`
 - `tests/test_api.py` — indirectly (via the FastAPI TestClient)
 - `tests/test_frame_state.py` — indirectly (API integration test for modal frames)
+- `tests/test_pipeline.py` — direct unit tests, focused on the tint-discount wiring
 
 ---
 
@@ -35,7 +38,7 @@ y1 = round((y_rel + h_rel) * h_img)
 ```
 Clamping (lines 96–99): `max(0, min(coord, dimension))` on all four values.
 
-### `run_pipeline(image, source, localizer, identifier, frame_state_fn) -> GameStateSnapshot` — line 109
+### `run_pipeline(image, source, localizer, identifier, frame_state_fn, tint_fn, tint_confidence_discount, tint_confidence_floor) -> GameStateSnapshot` — line 176
 ```python
 def run_pipeline(
     image: np.ndarray,
@@ -43,6 +46,9 @@ def run_pipeline(
     localizer: LocalizerCallable = classical_localize,
     identifier: Callable[[np.ndarray], tuple[str, str, float]] = identify,
     frame_state_fn: Callable[[np.ndarray], FrameState] = classify_frame_state,
+    tint_fn: Callable[[np.ndarray], bool] | None = is_red_tint,
+    tint_confidence_discount: float = _TINT_CONFIDENCE_DISCOUNT,   # 0.7
+    tint_confidence_floor: float = _TINT_CONFIDENCE_FLOOR,         # 0.5
 ) -> GameStateSnapshot:
 ```
 **Parameters:**
@@ -51,10 +57,15 @@ def run_pipeline(
 - `localizer` — defaults to `classical_localize` (validated implementation);
   pass `stub_localize` explicitly to use the teaching baseline
 - `identifier` — defaults to `identify` (stub); accepts any matching callable.
-  Pass `make_gallery_identifier(gallery)` from `dbcv.identify` to use the
-  classical gallery matcher (Stage 2). The API does this via `app.state.identifier`.
+  Pass `make_gallery_identifier(gallery)` / `make_embedding_identifier(...)` /
+  `make_ensemble_identifier(...)` from `dbcv.identify`. The API does this via
+  `app.state.identifier` (see `Settings.identifier` in `config.md`).
 - `frame_state_fn` — defaults to `classify_frame_state` (Stage 0 gate);
   inject `lambda _: "board"` in tests to skip the gate
+- `tint_fn` — (added 2026-07-29) defaults to `dbcv.frame_state.is_red_tint`
+  (Kill-Mode red-tint detector). Pass `None` to disable.
+- `tint_confidence_discount` / `tint_confidence_floor` — (added 2026-07-29)
+  see "Kill-Mode red-tint abstention" below.
 
 **Steps:**
 0. Run `frame_state_fn(image)` → `FrameState` ("board"/"modal"/"menu").
@@ -64,8 +75,33 @@ def run_pipeline(
 2. Call `localizer(image, resolution)` → list of `BboxRel`.
 3. For each box: `crop_relative(image, bbox_rel)` → call `identifier(crop)`.
    Zero-size crops (degenerate boxes) → `("unknown", "unknown", 0.0)`.
+3b. (added 2026-07-29) If `tint_fn is not None and tint_fn(image)`: run every
+    identity through `_apply_tint_discount` (line 137) — see below.
 4. Call `assemble(source, resolution, boxes, identities)` → `GameStateSnapshot`.
    Apply `model_copy(update={"frame_state": state})` to stamp the gate result.
+
+---
+
+## Kill-Mode red-tint abstention (2026-07-29, plans/PLAN-live-capture.md Fix 1)
+
+`_apply_tint_discount(result, discount, floor)` (line 137) is a pure helper:
+multiplies confidence by `discount` (default 0.7), and if the result falls
+below `floor` (default 0.5), forces `identity`/`role_class` to `"unknown"`
+while keeping the discounted confidence value visible.
+
+Applied uniformly after identification, regardless of which identifier
+produced the result (classical, embedding, or ensemble) — the pipeline has
+no per-identifier knowledge of confidence scale, so this is deliberately a
+generic, identifier-agnostic wrapper rather than threading a per-identifier
+threshold through the `Callable[[np.ndarray], tuple[str, str, float]]`
+interface (see the module docstring for why that would need a larger
+refactor). One practical consequence: since the embedding identifier's
+confidence is a top1-top2 margin (typically 0.12-0.40), the 0.7 discount
+combined with the 0.5 floor makes it re-abstain almost every time under
+tint — a deliberately conservative outcome.
+
+Tests: `tests/test_pipeline.py` (stub localizer/identifier/tint_fn; covers
+untouched/discounted/re-abstained/disabled/non-board-skips-tint-check cases).
 
 ---
 

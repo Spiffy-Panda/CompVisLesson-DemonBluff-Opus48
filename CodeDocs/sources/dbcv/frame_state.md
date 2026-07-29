@@ -1,16 +1,21 @@
 # CodeDocs/sources/dbcv/frame_state.md
 
 **Status:** active — Stage 0 frame-state gate, implemented and tested.
+**2026-07-29:** added `measure_red_shift`/`is_red_tint`, a Kill-Mode
+red-tint detector (plans/PLAN-live-capture.md Fix 1).
 
 **Purpose:** Classifies a decoded game frame as one of `"board"`, `"modal"`,
 or `"menu"` using a classical, CPU-only signal.  The pipeline calls this
 function first; non-board frames skip localisation entirely (returning `cards=[]`).
+Also provides a separate, independent whole-frame tint signal (see below).
 
 **Who uses it:**
 - `dbcv/pipeline.py` — calls `classify_frame_state` as the first step in
-  `run_pipeline`; result is stored in `snapshot.frame_state`
-- `tests/test_frame_state.py` — unit-tests the gate on the labeled frame set;
-  also integration-tests the full pipeline via the API
+  `run_pipeline`; result is stored in `snapshot.frame_state`. Also imports
+  `is_red_tint` as the default `tint_fn` for the Kill-Mode confidence discount.
+- `tests/test_frame_state.py` — unit-tests the gate on the labeled frame set
+  and the red-tint detector on synthetic frames; also integration-tests the
+  full pipeline via the API
 
 ---
 
@@ -100,3 +105,36 @@ and tested in `tests/test_frame_state.py::test_partial_modal_documented_handling
   `image.shape[:2]` measured at call time.
 - Adding a new state class (e.g. "voting_screen") only requires adding a new
   branch here and extending the `FrameState` Literal in `schema.py`.
+
+---
+
+## Kill-Mode red-tint detection (2026-07-29, plans/PLAN-live-capture.md Fix 1)
+
+### `measure_red_shift(image) -> float` — line 263
+```python
+def measure_red_shift(image: np.ndarray) -> float:
+```
+Returns `mean(R - max(G, B))` over every pixel (BGR channel order). Not a
+gate itself — a continuous signal for `is_red_tint` and any future caller
+that wants the raw score.
+
+### `is_red_tint(image, threshold=_RED_TINT_THRESHOLD) -> bool` — line 292
+```python
+def is_red_tint(image: np.ndarray, threshold: float = _RED_TINT_THRESHOLD) -> bool:
+```
+Thin wrapper: `measure_red_shift(image) >= threshold`. Passed as the default
+`tint_fn` to `dbcv.pipeline.run_pipeline`, which discounts and re-abstains
+low-confidence identifications while active (see `pipeline.md`).
+
+**Calibration:** measured on 147 frames across `collect_01` + `collect_02`
+(2026-07-29 live evals) — tinted frames scored 14.4-32.2; every other frame
+scored -16.9 to +0.5. `_RED_TINT_THRESHOLD = 10.0` (line 140) sits in the
+middle of that gap with no observed overlap.
+
+**Scope:** this only addresses the *identification*-reliability drop under
+Kill-Mode tint. A separate, unfixed issue — the localizer's red HSV mask
+firing on the center demon-altar decoration under tint, producing a spurious
+card box — is documented but not fixed this wave (see `localize.md`).
+
+Tests: `tests/test_frame_state.py` (synthetic frames; neutral/green/red
+cases + threshold override).

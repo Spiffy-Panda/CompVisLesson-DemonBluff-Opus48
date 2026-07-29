@@ -41,7 +41,11 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from dbcv.config import get_settings
 from dbcv.embed import get_onnx_embedder
 from dbcv.gallery import build_embedding_gallery, build_gallery
-from dbcv.identify import make_embedding_identifier, make_gallery_identifier
+from dbcv.identify import (
+    make_embedding_identifier,
+    make_ensemble_identifier,
+    make_gallery_identifier,
+)
 from dbcv.pipeline import run_pipeline
 from dbcv.schema import GameStateSnapshot, Source
 
@@ -73,6 +77,13 @@ async def lifespan(application: FastAPI):
 
     If the ONNX file is missing, startup warns and falls back to the
     classical identifier so the API stays serviceable.
+
+    Which identifier ends up on ``application.state.identifier`` is chosen by
+    ``Settings.identifier`` (dbcv/config.py, env var ``DBCV_IDENTIFIER``):
+    "embedding" (default, unchanged pre-2026-07-29 behaviour), "classical",
+    or "ensemble" (the opt-in classical+embedding composition layer from
+    plans/PLAN-live-capture.md Fix 3).  ``application.state.classical_identifier``
+    is always built and always available regardless of the selection.
     """
     # --- startup ---
     settings = get_settings()
@@ -99,15 +110,34 @@ async def lifespan(application: FastAPI):
     # If the ONNX file is missing (not yet generated), fall back gracefully to
     # the classical identifier with a warning.  Run finetune_embedding.py to
     # regenerate the served (fine-tuned) backbone.
+    # Which identifier to serve on app.state.identifier — see
+    # Settings.identifier (dbcv/config.py) and plans/PLAN-live-capture.md
+    # Fix 3.  Default "embedding" reproduces the pre-2026-07-29 behaviour
+    # exactly; "classical" and "ensemble" are opt-in via DBCV_IDENTIFIER.
+    requested_identifier = settings.identifier
+
     try:
         embedder = get_onnx_embedder()
         embed_gallery = build_embedding_gallery(gallery, embedder)
         application.state.embedder = embedder
         application.state.embed_gallery = embed_gallery
-        # Embedding-NN is the default identifier (Stage 2)
-        application.state.identifier = make_embedding_identifier(embedder, embed_gallery)
+        embedding_identifier = make_embedding_identifier(embedder, embed_gallery)
+
+        if requested_identifier == "classical":
+            application.state.identifier = application.state.classical_identifier
+        elif requested_identifier == "ensemble":
+            # Opt-in composition layer (Fix 3): calls both identifiers and
+            # combines their results — see dbcv.identify.combine_identifications.
+            application.state.identifier = make_ensemble_identifier(
+                application.state.classical_identifier, embedding_identifier
+            )
+        else:
+            # "embedding" (default) — unchanged from before 2026-07-29.
+            application.state.identifier = embedding_identifier
     except FileNotFoundError as exc:
-        # ONNX file not generated yet — fall back to classical
+        # ONNX file not generated yet — fall back to classical regardless of
+        # the requested identifier (ensemble/embedding both need the ONNX
+        # model; classical alone is always serviceable).
         import warnings
         warnings.warn(
             f"Embedding-NN model not found ({exc}). "

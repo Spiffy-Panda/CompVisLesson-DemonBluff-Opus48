@@ -1,6 +1,8 @@
 # CodeDocs/sources/dbcv/config.py
 
 **Status:** slice/active — minimal settings; placeholder `confidence_threshold`.
+**2026-07-29:** added `identifier` (embedding/classical/ensemble selector,
+plans/PLAN-live-capture.md Fix 3).
 
 **Purpose:** pydantic-settings `Settings` class for project-wide runtime
 configuration.  Values come from environment variables (prefixed `DBCV_`) or
@@ -21,17 +23,23 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 ```
 Anchored to the repo root per Rule 1 — never assumes CWD.
 
-### `class Settings(BaseSettings)` — line 49
+### `class Settings(BaseSettings)` — line 50
 ```python
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="DBCV_", ...)
     frames_dir: Path = Field(default=_REPO_ROOT / "dataset" / "frames")
     confidence_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    identifier: Literal["embedding", "classical", "ensemble"] = Field(default="embedding")
 ```
 - `DBCV_FRAMES_DIR` overrides `frames_dir`
 - `DBCV_CONFIDENCE_THRESHOLD` overrides `confidence_threshold`
+- `DBCV_IDENTIFIER` overrides `identifier` — (added 2026-07-29, line 102)
+  selects which Stage 2 identifier `api.py`'s lifespan builds and serves.
+  `"embedding"` (default) reproduces pre-2026-07-29 behaviour exactly;
+  `"classical"` and `"ensemble"` (plans/PLAN-live-capture.md Fix 3) are
+  opt-in.
 
-### `get_settings() -> Settings` — line 101
+### `get_settings() -> Settings` — line 119
 ```python
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

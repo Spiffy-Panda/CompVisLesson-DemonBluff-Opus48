@@ -55,6 +55,44 @@ set is swapped for the alternate set, these ranges would be **re-tuned** (not
 retrained) — typically a 15-30 minute manual pass with an HSV visualiser.  The
 morphology kernel sizes and contour filters are geometry-derived and would not
 need adjustment.
+
+Live-capture HUD-zone fix (2026-07-29, ``plans/PLAN-live-capture.md``)
+------------------------------------------------------------------------
+Two live-frame evals (`collect_01`, `collect_02` — see ``DEV-LOG.md``,
+2026-07-29) found the original HUD strips (top 9% full-width, left 13% full
+height) were too thin to cover two real HUD elements, both measured directly
+off live frames:
+
+1. The **objective-text block** (title + minion/demon counts + "Evils
+   killed" + "Village" + "Ascension" + "Score" lines) sits **top-left**,
+   measured at up to x≈0.25, y≈0.25 of frame size — wider and taller than
+   either the old top strip or the old left panel covered alone.  This was
+   the dominant live-frame false positive: a "Hunter@0.42-0.50" card hit
+   fired in 73-83% of board frames across both evals.
+2. The **top-right "revealed evils" thumbnail strip** (small badge portraits
+   of already-executed evil characters) is genuine character art in a HUD
+   summary widget, not a board card — it produced the second-largest false
+   positive cluster in `eval_02` (55 confident hits, some >0.9 confidence,
+   because the badge genuinely resembles the real character).
+
+**Why not just widen the existing full-width top strip to ~20%?**  Verified
+harmful on real frames: the top-center card slot's top edge can sit as high
+as y≈0.076 (e.g. `collect_02/050.png` card #7, at x≈0.48-0.53) — well inside
+a naive 0-20%-height full-width band.  The fix is two **narrow, corner-only**
+zones (see ``HUD_ZONES`` below) instead of widening the full-width strip.
+
+Both new zones were checked against every confident real-card detection in
+both evals (classical confidence >= 0.5, or any non-"unknown" embedding hit):
+no real card intrudes into either zone with margin to spare (left column
+real cards start at x>=0.29; right column real cards stay under x<=0.76 in
+every non-Kill-Mode frame sampled).
+
+A third recurring false positive ("Poisoner@0.42-0.44") was investigated and
+found to be a **genuine board card**, not a fixed background element — the
+classical HSV matcher has a Hunter->Poisoner confusion that recurs wherever a
+revealed Hunter card happens to sit.  No HUD zone or guard was added for it;
+doing so would blind the localizer to real cards.  See
+``plans/PLAN-live-capture.md`` for the frame-by-frame evidence.
 """
 
 from __future__ import annotations
@@ -194,6 +232,16 @@ def classical_localize(
     - Sample2 board frames: 9/9 cards detected exactly, 0 false positives.
     - Modal/overlay frames: correctly returns ~0–2 boxes (no false board parse).
 
+    Live-frame validation (2026-07-29, see plans/PLAN-live-capture.md)
+    ---------------------------------------------------------------------
+    The sample-video spike above did not catch the HUD false positives live
+    capture exposed (73-83% of live board frames spuriously reported a
+    "Hunter" hit from the objective-text HUD block).  The two new corner-only
+    HUD_ZONES entries fix that without regressing recall: every confident
+    real-card detection in both live evals (eval_01, eval_02) stays clear of
+    both new zones with margin.  Re-run scrap_scripts/python/08_eval_collect02.py
+    (extended with a full_ensemble arm) after this change for updated numbers.
+
     Art-swap note
     -------------
     The HSV thresholds below were tuned to the *current* art palette.  On an art
@@ -229,6 +277,14 @@ def classical_localize(
     #   - Bottom ~14%: name labels, spectator watermark
     #   - Left ~13% : score/role panel
     #   - Right ~8% : role icon cluster
+    #   - Top-left corner (0-27% w, 0-27% h): the FULL objective-text block
+    #     (title + minion/demon counts + Evils-killed/Village/Ascension/Score
+    #     lines) — taller AND wider than the plain top/left strips above.
+    #     Corner-only (not full-width/full-height) so the top-center and
+    #     left-column card slots are untouched — see the module docstring's
+    #     "Live-capture HUD-zone fix" section.
+    #   - Top-right corner (86-100% w, 0-36% h): the "revealed evils" badge
+    #     thumbnail strip — genuine character-art HUD widget, not a card.
     # Zeroing these strips prevents the segmentation from picking up colourful
     # UI chrome that would otherwise pass the card-colour test.
     work = image.copy()
@@ -236,6 +292,8 @@ def classical_localize(
     work[int(h * 0.86) :, :] = 0          # bottom strip (name labels, watermark)
     work[:, : int(w * 0.13)] = 0          # left score panel
     work[:, int(w * 0.92) :] = 0          # right edge icons
+    work[: int(h * 0.27), : int(w * 0.27)] = 0   # top-left objective-text block (corner-only)
+    work[: int(h * 0.36), int(w * 0.86) :] = 0   # top-right revealed-evils badge strip (corner-only)
 
     # ------------------------------------------------------------------
     # Stage 2 — HSV colour segmentation of card regions
@@ -313,6 +371,8 @@ def classical_localize(
         (0.00, 0.86, 1.00, 0.14),   # bottom name / watermark strip
         (0.82, 0.78, 0.18, 0.22),   # bottom-right timer / health cluster
         (0.12, 0.72, 0.05, 0.20),   # left nomination button area
+        (0.00, 0.00, 0.27, 0.27),   # top-left objective-text block (corner-only; 2026-07-29 live-eval fix)
+        (0.86, 0.00, 0.14, 0.36),   # top-right revealed-evils badge strip (corner-only; 2026-07-29 live-eval fix)
     ]
 
     def _in_hud(x: float, y: float, bw: float, bh: float) -> bool:

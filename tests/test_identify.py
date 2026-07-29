@@ -29,7 +29,9 @@ from dbcv.api import app
 from dbcv.gallery import Gallery, build_gallery
 from dbcv.identify import (
     classify_crop,
+    combine_identifications,
     identify,
+    make_ensemble_identifier,
     make_gallery_identifier,
     stub_identify,
 )
@@ -227,6 +229,150 @@ def test_legacy_identify_returns_unknown() -> None:
     assert result == ("unknown", "unknown", 0.0), (
         f"identify() returned {result!r}; expected stub result."
     )
+
+
+# ---------------------------------------------------------------------------
+# Ensemble combiner (2026-07-29, plans/PLAN-live-capture.md Fix 3)
+# ---------------------------------------------------------------------------
+#
+# combine_identifications is a pure function of two (identity, role_class,
+# confidence) stub tuples -- no gallery/embedder needed, so these tests
+# exercise every combination rule directly and unconditionally (no skips).
+
+
+def test_combine_both_unknown_returns_unknown() -> None:
+    classical = ("unknown", "unknown", 0.1)
+    embedding = ("unknown", "unknown", 0.05)
+    identity, role_class, confidence, source = combine_identifications(classical, embedding)
+    assert (identity, role_class) == ("unknown", "unknown")
+    assert confidence == 0.0
+    assert source == "both_unknown"
+
+
+def test_combine_agreement_boosts_confidence() -> None:
+    """Same identity on both sides -> boosted confidence, source 'agree'."""
+    classical = ("Wretch", "outcast", 0.60)
+    embedding = ("Wretch", "outcast", 0.30)
+    identity, role_class, confidence, source = combine_identifications(classical, embedding)
+    assert identity == "Wretch"
+    assert role_class == "outcast"
+    assert source == "agree"
+    # Boosted above the stronger (classical) input, capped at 1.0.
+    assert confidence > 0.60
+    assert confidence <= 1.0
+
+
+def test_combine_agreement_confidence_is_capped_at_one() -> None:
+    classical = ("Judge", "villager", 0.95)
+    embedding = ("Judge", "villager", 0.90)
+    _, _, confidence, source = combine_identifications(classical, embedding)
+    assert source == "agree"
+    assert confidence == 1.0
+
+
+def test_combine_classical_abstains_adopts_embedding() -> None:
+    """Classical unknown, embedding answers -> embedding's result, unchanged."""
+    classical = ("unknown", "unknown", 0.10)
+    embedding = ("Judge", "villager", 0.22)
+    identity, role_class, confidence, source = combine_identifications(classical, embedding)
+    assert (identity, role_class, confidence) == ("Judge", "villager", 0.22)
+    assert source == "embedding_only"
+
+
+def test_combine_embedding_abstains_adopts_classical() -> None:
+    """Embedding unknown, classical answers -> classical's result, unchanged."""
+    classical = ("Wretch", "outcast", 0.55)
+    embedding = ("unknown", "unknown", 0.04)
+    identity, role_class, confidence, source = combine_identifications(classical, embedding)
+    assert (identity, role_class, confidence) == ("Wretch", "outcast", 0.55)
+    assert source == "classical_only"
+
+
+def test_combine_disagreement_abstains_not_higher_confidence() -> None:
+    """Different identities on both sides -> abstain, even though classical's
+    raw confidence is numerically higher.
+
+    This is the exact Poisoner/Hunter shape found in eval_02
+    (collect_02/018.png): classical said Poisoner@0.47, embedding said
+    Hunter@0.20, and ground truth (visually confirmed) was Hunter. A
+    "prefer higher confidence" rule would pick classical's wrong answer here
+    -- the ensemble must NOT do that.
+    """
+    classical = ("Poisoner", "minion", 0.47)   # higher raw confidence, WRONG
+    embedding = ("Hunter", "villager", 0.20)   # lower raw confidence, RIGHT
+    identity, role_class, confidence, source = combine_identifications(classical, embedding)
+    assert identity == "unknown", (
+        "Disagreement must abstain, not silently pick the higher raw confidence "
+        f"(which would wrongly select {classical[0]!r} here)."
+    )
+    assert role_class == "unknown"
+    assert confidence == 0.0
+    assert source == "disagree_abstain"
+
+
+@pytest.mark.parametrize(
+    "classical,embedding",
+    [
+        (("Empress", "villager", 0.9), ("Knight", "villager", 0.9)),
+        (("Slayer", "villager", 0.41), ("Witch", "minion", 0.13)),
+    ],
+)
+def test_combine_disagreement_always_abstains(
+    classical: tuple[str, str, float], embedding: tuple[str, str, float]
+) -> None:
+    identity, role_class, confidence, source = combine_identifications(classical, embedding)
+    assert identity == "unknown"
+    assert role_class == "unknown"
+    assert confidence == 0.0
+    assert source == "disagree_abstain"
+
+
+def test_make_ensemble_identifier_returns_callable() -> None:
+    fn = make_ensemble_identifier(
+        lambda crop: ("Wretch", "outcast", 0.6),
+        lambda crop: ("unknown", "unknown", 0.05),
+    )
+    assert callable(fn)
+
+
+def test_make_ensemble_identifier_calls_both_and_combines() -> None:
+    """The pipeline-facing wrapper drops the source tag but keeps the combined result."""
+    classical_stub = lambda crop: ("Wretch", "outcast", 0.6)  # noqa: E731
+    embedding_stub = lambda crop: ("unknown", "unknown", 0.05)  # noqa: E731
+    fn = make_ensemble_identifier(classical_stub, embedding_stub)
+
+    crop = np.zeros((64, 64, 3), dtype=np.uint8)
+    result = fn(crop)
+
+    assert len(result) == 3   # 3-tuple pipeline contract, no 4th 'source' element
+    identity, role_class, confidence = result
+    assert (identity, role_class, confidence) == ("Wretch", "outcast", 0.6)
+
+
+def test_make_ensemble_identifier_disagreement_abstains() -> None:
+    classical_stub = lambda crop: ("Poisoner", "minion", 0.47)  # noqa: E731
+    embedding_stub = lambda crop: ("Hunter", "villager", 0.20)  # noqa: E731
+    fn = make_ensemble_identifier(classical_stub, embedding_stub)
+
+    crop = np.zeros((64, 64, 3), dtype=np.uint8)
+    identity, role_class, confidence = fn(crop)
+    assert identity == "unknown"
+    assert role_class == "unknown"
+    assert confidence == 0.0
+
+
+def test_ensemble_identifier_end_to_end_with_real_gallery(gallery: Gallery) -> None:
+    """Real classify_crop wired through the ensemble on a blank crop stays honest."""
+    real_classical = make_gallery_identifier(gallery)
+    stub_embedding = lambda crop: ("unknown", "unknown", 0.0)  # noqa: E731
+    fn = make_ensemble_identifier(real_classical, stub_embedding)
+
+    blank = np.zeros((64, 64, 3), dtype=np.uint8)
+    identity, role_class, confidence = fn(blank)
+    # A blank/black crop should not be confidently identified by either arm.
+    assert identity == "unknown"
+    assert role_class == "unknown"
+    assert 0.0 <= confidence <= 1.0
 
 
 # ---------------------------------------------------------------------------

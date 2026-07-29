@@ -34,6 +34,22 @@ Converting from relative → pixel coordinates is a deliberate teaching moment:
 This computation must happen *after* reading the resolution from the image,
 not from a stored constant — which is why ``crop_relative`` accepts the image
 itself rather than a pre-measured size.
+
+Kill-Mode red-tint abstention (2026-07-29, plans/PLAN-live-capture.md)
+------------------------------------------------------------------------
+Live capture surfaced a full-frame red colour grade ("Kill Mode") that
+degrades identification reliability.  ``run_pipeline`` accepts an injectable
+``tint_fn`` (defaults to ``dbcv.frame_state.is_red_tint``); when it reports
+tint active for the frame, every non-"unknown" identification's confidence
+is discounted by ``tint_confidence_discount`` and re-abstained (forced to
+"unknown") if the discounted value falls below ``tint_confidence_floor``.
+This is a per-frame, identifier-agnostic wrapper applied *after* the
+identifier runs — neither ``classify_crop`` nor ``classify_crop_embedding``
+is touched, so both identifiers stay independently correct outside tinted
+frames.  See PLAN-live-capture.md for why a uniform discount was chosen over
+threading identifier-specific thresholds through the generic
+``Callable[[np.ndarray], tuple[str, str, float]]`` interface (it has no way
+to report or receive its own abstention floor without a larger refactor).
 """
 
 from __future__ import annotations
@@ -43,10 +59,22 @@ from typing import Callable
 import numpy as np
 
 from dbcv.assemble import assemble
-from dbcv.frame_state import FrameState, classify_frame_state
+from dbcv.frame_state import FrameState, classify_frame_state, is_red_tint
 from dbcv.identify import identify
 from dbcv.localize import BboxRel, LocalizerCallable, classical_localize
 from dbcv.schema import GameStateSnapshot, Resolution, Source
+
+# Multiplicative confidence penalty applied to every non-"unknown" identification
+# when the frame is Kill-Mode tinted (see "Kill-Mode red-tint abstention" above).
+_TINT_CONFIDENCE_DISCOUNT: float = 0.7
+
+# Discounted-confidence floor below which a tinted-frame identification is
+# forced back to "unknown".  Matches Settings.confidence_threshold's default
+# (dbcv/config.py) -- this is the first place that setting's documented
+# "below this, treat as unidentified" intent is actually enforced, scoped to
+# the tint case only (a blanket global floor is a bigger, unvalidated change
+# left out of this wave).
+_TINT_CONFIDENCE_FLOOR: float = 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +130,45 @@ def crop_relative(image: np.ndarray, bbox_rel: BboxRel) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
+# Kill-Mode red-tint discount helper
+# ---------------------------------------------------------------------------
+
+
+def _apply_tint_discount(
+    result: tuple[str, str, float],
+    discount: float,
+    floor: float,
+) -> tuple[str, str, float]:
+    """Discount one identification result under Kill-Mode red tint.
+
+    Parameters
+    ----------
+    result:
+        (identity, role_class, confidence) as returned by any identifier.
+    discount:
+        Multiplicative penalty applied to ``confidence`` (e.g. 0.7).
+    floor:
+        Discounted-confidence value below which the result is forced to
+        ``("unknown", "unknown", discounted_confidence)``.
+
+    Returns
+    -------
+    tuple[str, str, float]
+        The original result with confidence discounted, or re-abstained
+        (identity/role_class forced to "unknown", confidence kept at its
+        discounted value so the caller can see how close it came) if the
+        discounted confidence falls below ``floor``.  Results that were
+        already "unknown" are discounted too (for a consistent, honest
+        confidence number) but never need re-abstaining.
+    """
+    identity, role_class, confidence = result
+    discounted = round(confidence * discount, 4)
+    if discounted < floor:
+        return ("unknown", "unknown", discounted)
+    return (identity, role_class, discounted)
+
+
+# ---------------------------------------------------------------------------
 # Main pipeline entry point
 # ---------------------------------------------------------------------------
 
@@ -112,6 +179,9 @@ def run_pipeline(
     localizer: LocalizerCallable | Callable[..., list[BboxRel]] = classical_localize,
     identifier: Callable[[np.ndarray], tuple[str, str, float]] = identify,
     frame_state_fn: Callable[[np.ndarray], FrameState] = classify_frame_state,
+    tint_fn: Callable[[np.ndarray], bool] | None = is_red_tint,
+    tint_confidence_discount: float = _TINT_CONFIDENCE_DISCOUNT,
+    tint_confidence_floor: float = _TINT_CONFIDENCE_FLOOR,
 ) -> GameStateSnapshot:
     """Run the full frame → GameStateSnapshot pipeline.
 
@@ -134,6 +204,20 @@ def run_pipeline(
         ``classify_frame_state`` (the classical center-vs-ring brightness ratio
         gate).  Inject a lambda / stub in tests to isolate the gate from the
         localiser:  ``frame_state_fn=lambda _: "board"``.
+    tint_fn:
+        Callable ``(image: np.ndarray) -> bool``.  Defaults to
+        ``dbcv.frame_state.is_red_tint`` (the Kill-Mode red-tint detector,
+        2026-07-29 live-eval fix — see the module docstring).  When it
+        returns True, every identified card's confidence is discounted by
+        ``tint_confidence_discount`` and re-abstained if the result falls
+        below ``tint_confidence_floor``.  Pass ``None`` to disable entirely
+        (useful in tests that want the raw identifier output untouched).
+    tint_confidence_discount:
+        Multiplicative confidence penalty applied when ``tint_fn`` reports
+        tint active.  Defaults to 0.7.
+    tint_confidence_floor:
+        Discounted-confidence floor below which a tinted-frame identification
+        is forced back to "unknown".  Defaults to 0.5.
 
     Returns
     -------
@@ -151,6 +235,9 @@ def run_pipeline(
     - The frame state gate (Stage 0) runs first; if it returns "modal" or
       "menu" the localizer and identifier are skipped entirely.  This prevents
       false card detections on modal/overlay frames.
+    - The tint discount runs after identification, regardless of which
+      identifier is plugged in (classical, embedding, or the ensemble) — see
+      "Kill-Mode red-tint abstention" in the module docstring.
     """
     # Step 0: Frame-state gate — classify the frame before any expensive CV
     #
@@ -183,6 +270,17 @@ def run_pipeline(
             identities.append(("unknown", "unknown", 0.0))
         else:
             identities.append(identifier(crop))
+
+    # Step 3b: Kill-Mode red-tint abstention (2026-07-29 live-eval fix).
+    # Runs after identification, independent of which identifier was plugged
+    # in.  See "Kill-Mode red-tint abstention" in the module docstring.
+    if tint_fn is not None and tint_fn(image):
+        identities = [
+            _apply_tint_discount(
+                result, tint_confidence_discount, tint_confidence_floor
+            )
+            for result in identities
+        ]
 
     # Step 4: Assemble — package everything into the versioned snapshot
     base = assemble(source, resolution, boxes, identities)

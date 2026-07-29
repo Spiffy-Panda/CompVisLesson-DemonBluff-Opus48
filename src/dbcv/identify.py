@@ -84,6 +84,16 @@ Research grounding
   in OpenCV without licence restrictions.
 - "Why classical now, NN later": see research/RESEARCH.md entry 3 for the
   deferred embedding-NN approach motivation.
+
+Ensemble identifier (2026-07-29, plans/PLAN-live-capture.md)
+--------------------------------------------------------------
+A third identifier, ``combine_identifications`` / ``make_ensemble_identifier``
+(bottom of this module), composes ``classify_crop`` and
+``classify_crop_embedding`` without changing either.  It is opt-in (not the
+default) and motivated directly by the collect_02 live eval's finding that
+the two identifiers catch different cards more often than they agree or
+both miss -- see the ensemble section's own docstring for the combination
+rules and the eval evidence.
 """
 
 from __future__ import annotations
@@ -507,3 +517,170 @@ def make_embedding_identifier(
         return classify_crop_embedding(card_crop, embedder, embed_gallery)
 
     return _embedding_identify
+
+
+# ---------------------------------------------------------------------------
+# Ensemble — classical + embedding composition layer (2026-07-29 live-eval fix)
+# ---------------------------------------------------------------------------
+#
+# Motivation (plans/PLAN-live-capture.md, "Fix 3"): the collect_02 live eval
+# found the two identifiers catch genuinely DIFFERENT cards, not just
+# agreeing-or-not on the same ones.  On the new roles that session surfaced:
+# classical alone got Wretch and Jester right; embedding alone got Judge and
+# Slayer right; both missed Empress, Knight, and Witch.  An IoU-matched pass
+# over eval_02's full_classical/full_embedding JSONs (917 matched card-slot
+# pairs) found:
+#
+#     agree (same identity, both non-unknown)        78
+#     classical abstains, embedding answers          235
+#     embedding abstains, classical answers            99
+#     disagree (different identity, both non-unknown)  20
+#     both abstain                                    485
+#
+# This module keeps classify_crop / classify_crop_embedding completely
+# unchanged -- the ensemble is a pure composition layer that calls both and
+# combines their independent results.  It does NOT require a fine-tune, a
+# new model, or a schema change; it is opt-in via Settings.identifier
+# (dbcv/config.py) / DBCV_IDENTIFIER=ensemble.
+
+# Confidence boost added when both identifiers agree (their independent
+# raw confidence scales are NOT comparable -- see the disagreement note
+# below -- so agreement combines via max(), not an average, then adds a
+# fixed boost as the "two independent methods agree" bonus).
+_ENSEMBLE_AGREEMENT_BOOST: float = 0.15
+
+# Ensemble outcome tags returned as the 4th element of combine_identifications.
+EnsembleSource = str  # "agree" | "classical_only" | "embedding_only" | "disagree_abstain" | "both_unknown"
+
+
+def combine_identifications(
+    classical: tuple[str, str, float],
+    embedding: tuple[str, str, float],
+) -> tuple[str, str, float, EnsembleSource]:
+    """Combine one classical result and one embedding result for the SAME crop.
+
+    This is the tested, source-tagged core of the ensemble.  It is a pure
+    function of two independent (identity, role_class, confidence) tuples --
+    it does not call either identifier itself, which is what makes it easy
+    to unit-test with stub outputs (see tests/test_identify.py).
+
+    Combination rules (in order)
+    -----------------------------
+    1. **Both abstain** ("unknown" identity on both) -> ("unknown", "unknown",
+       0.0, "both_unknown").
+    2. **Agreement** (same non-"unknown" identity on both) -> that identity,
+       confidence = ``min(1.0, max(classical_conf, embedding_conf) +
+       _ENSEMBLE_AGREEMENT_BOOST)``, source "agree".  ``max()`` rather than
+       an average because the two confidence scales are not comparable (see
+       rule 4) -- boosting the stronger of the two independent signals is
+       the only combination that doesn't require a cross-scale calibration
+       this project does not have yet.
+    3. **One abstains, the other doesn't** -> adopt the non-abstaining
+       result's identity/role_class/confidence UNCHANGED, source
+       "classical_only" or "embedding_only".  This is the biggest lever in
+       the eval_02 evidence above (334 of 917 matched pairs).
+    4. **Disagreement** (different non-"unknown" identities) -> abstain:
+       ("unknown", "unknown", 0.0, "disagree_abstain").  NOT "prefer the
+       higher confidence" -- eval_02's disagreement cases (e.g.
+       `collect_02/018.png`: classical says Poisoner@0.47, embedding says
+       Hunter@0.20; visually confirmed ground truth is Hunter) show
+       classical's raw confidence is numerically higher in every recorded
+       disagreement, yet classical is the one that's wrong.  Classical's
+       histogram-correlation scale (typically 0.40-0.90) and embedding's
+       top1-top2-margin scale (typically 0.12-0.40) are not calibrated
+       against each other, and there is no labeled live-crop set to fit a
+       fair normalization without calibrating on the same frames this
+       ensemble is being evaluated against.  Abstaining is the honest
+       choice until that data exists (see PLAN-live-capture.md, Fix 4).
+
+    Parameters
+    ----------
+    classical:
+        (identity, role_class, confidence) from ``classify_crop``.
+    embedding:
+        (identity, role_class, confidence) from ``classify_crop_embedding``.
+        Must be the result for the SAME crop as ``classical`` -- this
+        function does no spatial matching itself.
+
+    Returns
+    -------
+    (identity, role_class, confidence, source)
+        ``source`` is one of "agree", "classical_only", "embedding_only",
+        "disagree_abstain", "both_unknown" -- see ``make_ensemble_identifier``
+        for why this 4th element is dropped before reaching the pipeline.
+    """
+    c_identity, c_role, c_conf = classical
+    e_identity, e_role, e_conf = embedding
+
+    c_known = c_identity != "unknown"
+    e_known = e_identity != "unknown"
+
+    if not c_known and not e_known:
+        return ("unknown", "unknown", 0.0, "both_unknown")
+
+    if c_known and e_known:
+        if c_identity == e_identity:
+            boosted = min(1.0, max(c_conf, e_conf) + _ENSEMBLE_AGREEMENT_BOOST)
+            return (c_identity, c_role, round(boosted, 4), "agree")
+        # Disagreement: abstain rather than guess via an uncalibrated
+        # cross-scale confidence comparison (see docstring rule 4).
+        return ("unknown", "unknown", 0.0, "disagree_abstain")
+
+    if c_known:
+        return (c_identity, c_role, c_conf, "classical_only")
+
+    return (e_identity, e_role, e_conf, "embedding_only")
+
+
+def make_ensemble_identifier(
+    classical_identifier: Callable[[np.ndarray], tuple[str, str, float]],
+    embedding_identifier: Callable[[np.ndarray], tuple[str, str, float]],
+) -> Callable[[np.ndarray], tuple[str, str, float]]:
+    """Return a single-argument callable combining classical + embedding.
+
+    Calls both identifiers on the same crop and combines their results via
+    ``combine_identifications``.  Matches the same 1-argument pipeline
+    interface as ``make_gallery_identifier`` / ``make_embedding_identifier``,
+    so it is a drop-in ``identifier=`` for ``run_pipeline`` / the API.
+
+    Note on the dropped ``source`` tag
+    -----------------------------------
+    ``combine_identifications`` returns a 4-tuple tagging *how* the result
+    was produced (agreement / one-abstained / disagreement).  The pipeline's
+    identifier contract and ``CardRead`` (dbcv/schema.py) only carry
+    (identity, role_class, confidence) -- there is no provenance field yet.
+    This wrapper drops the tag rather than force a schema bump alongside two
+    other fixes in the same wave; callers that want the tag should call
+    ``combine_identifications`` directly (as the tests do).  Surfacing
+    provenance end-to-end is noted as an open item in
+    plans/PLAN-live-capture.md.
+
+    Parameters
+    ----------
+    classical_identifier:
+        A 1-argument callable, e.g. ``make_gallery_identifier(gallery)``.
+    embedding_identifier:
+        A 1-argument callable, e.g.
+        ``make_embedding_identifier(embedder, embed_gallery)``.
+
+    Returns
+    -------
+    Callable[[np.ndarray], tuple[str, str, float]]
+        A closure that runs both identifiers and combines their results.
+
+    Usage
+    -----
+        classical_id = make_gallery_identifier(gallery)
+        embedding_id = make_embedding_identifier(embedder, embed_gallery)
+        ensemble_id = make_ensemble_identifier(classical_id, embedding_id)
+        snapshot = run_pipeline(image, source, identifier=ensemble_id)
+    """
+    def _ensemble_identify(card_crop: np.ndarray) -> tuple[str, str, float]:
+        classical_result = classical_identifier(card_crop)
+        embedding_result = embedding_identifier(card_crop)
+        identity, role_class, confidence, _source = combine_identifications(
+            classical_result, embedding_result
+        )
+        return (identity, role_class, confidence)
+
+    return _ensemble_identify

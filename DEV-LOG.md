@@ -16,6 +16,69 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-07-29 — Live-eval fix wave: HUD-zone widen + classical/embedding ensemble; gate prototype; margin recal deferred
+
+**Context:** The two same-day live-frame evals below (`eval_01`, `eval_02`) left a ranked fix list. This session implements it: `plans/PLAN-live-capture.md` (new slug, indexed in `PLAN.md`) covers the full write-up; this entry is the summary.
+
+**Choice — fully implemented fixes 1 and 3, prototyped fix 2, deferred fix 4:**
+
+**Fix 1 — HUD/objective-text false positive (`src/dbcv/localize.py`, `src/dbcv/frame_state.py`, `src/dbcv/pipeline.py`).** Measured the actual objective-text HUD block's pixel extent directly off several `collect_01`/`collect_02` frames (different objective-text lengths, villages, both capture geometries): x up to ~0.25-0.27, y up to ~0.25-0.27 of frame size — wider *and* taller than either the old top-9%-full-width strip or the old left-13%-full-height panel covered alone. **Rejected the obvious fix (widen the full-width top band to ~20%)** — verified harmful: `collect_02/050.png`'s top-center card #7 has its top edge at y≈0.076, x≈0.48-0.53, well inside a naive 0-20%-height full-width band. Shipped instead: two **corner-only** `HUD_ZONES` entries, `(0.00, 0.00, 0.27, 0.27)` (top-left text block) and `(0.86, 0.00, 0.14, 0.36)` (a second false-positive source found while measuring the first — the top-right "revealed evils" badge thumbnail strip, genuine character art in a HUD summary widget, the *second*-largest FP cluster in `eval_02`, 55 confident hits up to 0.94 confidence). Both zones checked against every confident real-card bbox in both evals; no intrusion, margin to spare.
+
+Investigated the recurring **"Poisoner@0.42-0.44"** false identification (per the brief's instruction to check whether it's a fixed background element). It is **not**: traced its bbox coordinates across `eval_02`'s `full_classical` JSONs and cross-checked against `collect_02/018.png`, `010.png` visually — every occurrence is a genuine, moving board card (a revealed **Hunter**) that the classical HSV matcher confuses for Poisoner. Cross-checked `full_embedding` at the same frame/bbox: it correctly says Hunter. **No HUD zone or guard added** — one would create false negatives on real cards. Documented as a known classical-identifier weakness and folded into the Fix 3 evidence below.
+
+Also added the "at minimum" **Kill-Mode red-tint** item: `frame_state.measure_red_shift()`/`is_red_tint()`, a cheap global `mean(R - max(G,B))` score. Measured on all 147 sampled frames across both evals: tinted 14.4-32.2, everything else -16.9 to +0.5 — a clean gap, threshold set at 10.0. Wired into `pipeline.run_pipeline` as an injectable `tint_fn` (default active): under tint, every identification's confidence is discounted ×0.7 and re-abstained if it falls below a 0.5 floor — identifier-agnostic (a post-hoc wrapper over whatever `identifier` is plugged in), because the generic 3-tuple identifier interface has no way to report its own confidence scale for a smarter per-identifier threshold. This does **not** fix the localizer-side red-tint issue also found this session (a spurious card box around the center demon-altar decoration, from the red HSV mask firing on tinted non-card content, visually confirmed in `collect_02/043.png`) — noted as an open item, not fixed this wave.
+
+**Fix 3 — classical+embedding ensemble (`src/dbcv/identify.py`).** An IoU-matched pass over `eval_02`'s 917 card-slot pairs found: 78 agreements, 235 classical-abstains/embedding-answers, 99 embedding-abstains/classical-answers, 20 disagreements, 485 both-abstain. Built `combine_identifications` (pure, source-tagged 4-tuple, the tested core) + `make_ensemble_identifier` (adapts to the pipeline's 3-tuple contract, dropping the source tag — no `CardRead` schema field exists for it yet, noted as a future-wave item rather than a schema bump alongside two other fixes). Rules: agree → `confidence = min(1.0, max(c,e) + 0.15)`; one abstains → adopt the other unchanged (the biggest lever, 334/917 pairs); **disagree → abstain, not "prefer higher confidence."** Every one of the 20 recorded disagreements has classical's raw confidence (0.40-0.90 scale) numerically exceeding embedding's (0.12-0.40 scale) — yet the concrete Hunter/Poisoner case above (visually confirmed ground truth: Hunter) shows classical is the wrong one every time. The two scales are uncalibrated against each other and there's no labeled live-crop set to fit a fair normalization without calibrating on the same frames being evaluated (same reasoning as the Fix 4 deferral below) — abstaining is the honest choice. Wired as **opt-in**: `Settings.identifier` (`config.py`, `DBCV_IDENTIFIER` env var) = `"embedding"` (default, unchanged) / `"classical"` / `"ensemble"`; `api.py`'s lifespan builds the ensemble identifier when requested, falling back to classical if the ONNX model is missing (same pattern as the existing embedding fallback).
+
+**Fix 2 — gate-detection prototype, report only (`scrap_scripts/python/09_gate_dialog_probe.py`), not wired into `src/`.** Measured six candidate signals (the existing gate's center/ring ratio, the raw ring-mean "dimmed background" statistic, whole-frame brightness, center-box brightness std, localizer box count, Canny edge density) against `collect_02`'s 22 ground-truth non-board frames across 9 categories. Only 4 of 9 categories are cleanly separable by any single one of these six signals (deck, milestone, scoreboard, skin); the five DEV-LOG already flagged as unreliable — win_dialog, objective_dialog, menu, reward, tutorial — remain unseparated by all six, closely reproducing the earlier "0/6 win dialogs, 0/2 objective dialogs, 0/2 menus" finding. A real gate fix for those five needs a different signal family (panel/rectangle detection, dialog-chrome template matching, or a small learned classifier), not a cheap single statistic from this family. Left as a scoped starting point.
+
+**Fix 4 — embedding margin recalibration, deferred.** `_EMBED_MARGIN_THRESHOLD = 0.12` untouched. Needs a labeled live-crop set (a round-2-style labeling pass, analogous to `PLAN-round2-dataset.md`) — tuning it against the same `collect_02` frames used to *evaluate* this wave's fixes would be circular, the same standing rule the project already applies to the sample-video round-2 mining.
+
+**Results — re-ran the eval harness on `collect_02`** (new `scrap_scripts/python/10_eval_collect02_after_fixes.py`, writes to `out/eval_03/` so the original `out/eval_02/` "before" numbers stay intact for comparison; three arms this time — classical, embedding, and the new ensemble):
+
+| metric (full_classical, 93 board frames) | before | after |
+|---|---|---|
+| frames with the exact top-left HUD-text FP box | 24.7% | **0.0%** |
+| frames with ANY "Hunter" hit (real + FP combined) | 82.8% | 23.7% |
+| boxes / board frame | 9.86 | 8.94 |
+| classical non-unknown rate | 36.3% | 25.9%† |
+
+†Not a regression — the removed HUD-text FP boxes were themselves always
+"non-unknown" (confidently wrong, never abstained), so eliminating a pure
+false-positive source mechanically pulls the raw percentage down. Visually
+verified recall on real cards is intact (`eval_03/full_classical/050_overlay.png`,
+`018_overlay.png`, both viewed directly) — including the exact top-center
+high-top-edge card the fix was designed not to break, and confirming the
+top-right badge strip is now correctly unboxed too.
+
+**Ensemble non-unknown rate:** 34.1% (283/831), ahead of classical alone
+(25.9%) and embedding alone (20.6%) on the same fixed-localizer boxes.
+
+**Spot-check accuracy** on the 6 known-revealed frames from `actions.md`
+(023, 039, 055, 071, 085, 097 — distinct-role-set match): classical 17/34
+(50.0%), embedding 18/34 (52.9%), **ensemble 22/34 (64.7%)** — beats both
+alone. One instructive loss on frame 097: classical said `Bombardier`/
+`Poisoner` (both wrong), embedding correctly said `Slayer` on a different
+box, but the ensemble abstained where they disagreed rather than trust
+embedding, and only adopted classical's other wrong `Poisoner` guess where
+classical answered and embedding stayed silent — the disagree-abstain rule
+trading away a correct answer to avoid rubber-stamping a wrong one, exactly
+the conservative behavior it was designed for.
+
+**Tests:** 123 passed / 25 skipped (was 85/25) — new `tests/test_localize.py`
+(13, synthetic-frame HUD-zone masking + recall-regression + resolution-agnostic
+checks), `tests/test_pipeline.py` (7, tint-discount wiring with stub callables),
+additions to `tests/test_frame_state.py` (6, red-tint synthetic-frame tests)
+and `tests/test_identify.py` (12, ensemble combiner — agreement/one-abstain/
+disagreement/both-unknown, stub outputs including the exact Hunter/Poisoner
+disagreement shape). CodeDocs synced for every touched file
+(`localize.md`, `frame_state.md`, `pipeline.md`, `identify.md`, `config.md`,
+`api.md`, `00_PROJECT.md`, `CODE-DESIGN.md`).
+
+**Notes / risks:** (1) The localizer-side Kill-Mode red-tint false positive (spurious center-altar box) is still open — `is_red_tint` only raises the identification bar, not the localization one. (2) The ensemble's `source` provenance tag is computed but dropped before reaching the pipeline/schema — surfacing it needs a `CardRead` schema bump, left for later. (3) Fix 2 is report-only; no gate code changed. (4) Fix 4 needs a labeled live-crop round before it can move. (5) The scrap capture/eval scripts (`01`-`10`) remain unpromoted — Rule 1's promotion trigger still isn't met; flagged again for the next session.
+
+---
+
 ## 2026-07-29 — Second live eval: supported 16:9 geometry is hygiene, not an accuracy lever — content diversity was
 
 **Context:** The first eval (`collect_01`, below) ran 48 frames at an unsupported window AR, with a tutorial popup rendering partially off-screen — a confound on top of the pipeline's own faults. This session captured a second, larger collection at the now-verified true borderless 1280×720 geometry (launch flags held from last session) and re-ran the eval to separate "geometry fixed" from "pipeline fixed."

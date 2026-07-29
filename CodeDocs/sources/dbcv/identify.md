@@ -4,18 +4,22 @@
 Both classifiers live here. Classical is retained as a selectable baseline.
 Embedding-NN (`classify_crop_embedding`) is the **adopted default** identifier wired
 into the API lifespan via `make_embedding_identifier`. (Stage 3 = OCR, not built yet.)
+**2026-07-29:** a third, opt-in ensemble identifier (`combine_identifications` /
+`make_ensemble_identifier`) was added — plans/PLAN-live-capture.md Fix 3.
 
 **Purpose:** Given a localized card crop, identifies the townee, role class,
-and confidence. Two implementations:
+and confidence. Three implementations:
 - Classical: 2-D HSV histogram correlation + ORB tiebreaker.
 - Embedding-NN: ONNX cosine nearest-neighbor over prototype embeddings, using the
   **domain-fine-tuned** backbone (Proxy-Anchor LP-FT, 2026-06-22).
+- Ensemble (opt-in): a pure composition layer over the two above — see below.
 
 **Who uses it:**
 - `dbcv/pipeline.py` — imports `identify` as the legacy default `identifier` argument
-- `dbcv/api.py` — lifespan calls `make_embedding_identifier(embedder, embed_gallery)` for the default;
+- `dbcv/api.py` — lifespan calls `make_embedding_identifier(embedder, embed_gallery)` for the
+  default, or `make_ensemble_identifier(...)` when `Settings.identifier == "ensemble"`;
   `make_gallery_identifier(gallery)` kept as the classical fallback/baseline
-- `tests/test_identify.py` — tests classical functions
+- `tests/test_identify.py` — tests classical + ensemble functions
 - `tests/test_embed.py` — tests embedding functions
 
 ---
@@ -120,7 +124,7 @@ was *not* enough (it over-identified); the adopted fix was to domain-fine-tune i
 
 ## Embedding-NN identifier (Stage 2, adopted default)
 
-### `classify_crop_embedding(card_crop, embedder, embed_gallery) -> (identity, role_class, confidence)` (line 409)
+### `classify_crop_embedding(card_crop, embedder, embed_gallery) -> (identity, role_class, confidence)` (line 419)
 ```python
 def classify_crop_embedding(
     card_crop: np.ndarray,
@@ -159,7 +163,7 @@ classical↔embedding agreement rose 27 → 90 after the fine-tune. The syntheti
 is optimistic (augmented reference art, not real crops); real-frame generalisation beyond the
 confident few is the open round-2 lever.
 
-### `make_embedding_identifier(embedder, embed_gallery) -> Callable` (line 490)
+### `make_embedding_identifier(embedder, embed_gallery) -> Callable` (line 500)
 Bridges `classify_crop_embedding` into the 1-arg pipeline interface.
 Used by the API lifespan to make the default identifier.
 
@@ -168,6 +172,62 @@ Used by the API lifespan to make the default identifier.
 | Constant | Value | Purpose |
 |----------|-------|---------|
 | `_EMBED_MARGIN_THRESHOLD` | 0.12 | Minimum top1−top2 cosine margin to report a match (provisional); below this → "unknown" |
+
+---
+
+## Ensemble identifier (2026-07-29, plans/PLAN-live-capture.md Fix 3)
+
+Motivated by `eval_02`'s complementarity finding: an IoU-matched pass over
+917 card-slot pairs (classical vs embedding on the same crop) found only
+78 agreements and 20 disagreements, but **334** cases where exactly one
+identifier abstained and the other answered — the biggest lever by far.
+
+### `combine_identifications(classical, embedding) -> (identity, role_class, confidence, source)` (line 556)
+```python
+def combine_identifications(
+    classical: tuple[str, str, float],
+    embedding: tuple[str, str, float],
+) -> tuple[str, str, float, EnsembleSource]:
+```
+Pure function, no gallery/embedder needed — the tested core (see
+`tests/test_identify.py`'s stub-output tests). Combination rules, in order:
+
+| Case | Result | `source` tag |
+|------|--------|---------------|
+| both "unknown" | `("unknown", "unknown", 0.0)` | `"both_unknown"` |
+| same non-"unknown" identity on both | that identity; `confidence = min(1.0, max(c_conf, e_conf) + 0.15)` | `"agree"` |
+| classical "unknown", embedding answers | embedding's result, unchanged | `"embedding_only"` |
+| embedding "unknown", classical answers | classical's result, unchanged | `"classical_only"` |
+| different non-"unknown" identities | `("unknown", "unknown", 0.0)` — **abstain, not "prefer higher confidence"** | `"disagree_abstain"` |
+
+**Why disagreement abstains rather than picking the higher raw confidence:**
+every disagreement case recorded in `eval_02` has classical's raw confidence
+(0.40-0.90 histogram-correlation scale) numerically exceeding embedding's raw
+confidence (0.12-0.40 top1-top2-margin scale) — yet the concrete example
+(`collect_02/018.png`: classical `Poisoner@0.47`, embedding `Hunter@0.20`,
+visually confirmed ground truth `Hunter`) shows classical is the wrong one.
+The two confidence scales are not calibrated against each other and there is
+no labeled live-crop set to fit a fair normalization without calibrating on
+the same frames being evaluated (same reason `_EMBED_MARGIN_THRESHOLD`
+recalibration — Fix 4 — is deferred).
+
+### `make_ensemble_identifier(classical_identifier, embedding_identifier) -> Callable` (line 635)
+Bridges `combine_identifications` into the 1-arg pipeline interface — calls
+both identifiers, combines, and **drops the `source` tag** (the pipeline's
+identifier contract and `CardRead` schema only carry 3-tuple
+identity/role_class/confidence; no provenance field exists yet — noted as an
+open item in plans/PLAN-live-capture.md rather than forcing a schema bump
+alongside two other fixes).
+
+### Constants (ensemble)
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `_ENSEMBLE_AGREEMENT_BOOST` | 0.15 | Confidence bonus added when both identifiers agree |
+
+**Wired as opt-in, not default:** `Settings.identifier` (dbcv/config.py,
+`DBCV_IDENTIFIER` env var) selects `"embedding"` (default, unchanged),
+`"classical"`, or `"ensemble"` in `api.py`'s lifespan.
 
 ---
 

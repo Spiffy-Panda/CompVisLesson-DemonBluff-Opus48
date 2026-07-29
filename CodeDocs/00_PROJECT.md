@@ -84,4 +84,21 @@ and the adopted fine-tuned embedding-NN). Stage 3 = OCR, not built yet. 110 test
     with a warning.
 - Schema: `schema_version` = `"0.2.0"`; `frame_state` field present.
 
+**2026-07-29 live-eval fixes (plans/PLAN-live-capture.md):**
+- `localize.py` — two new corner-only `HUD_ZONES` entries fix the live-frame
+  "Hunter@0.42-0.50" HUD-text false positive (73-83% of live board frames)
+  and a revealed-evils badge-strip false positive, without regressing recall.
+- `frame_state.py` — new `measure_red_shift`/`is_red_tint` (Kill-Mode
+  red-tint detector).
+- `pipeline.py` — `run_pipeline` discounts + re-abstains identification
+  confidence under detected red tint (`tint_fn`, identifier-agnostic).
+- `identify.py` — new opt-in ensemble identifier (`combine_identifications` /
+  `make_ensemble_identifier`), composing the classical and embedding
+  identifiers without changing either.
+- `config.py` / `api.py` — `Settings.identifier` (`DBCV_IDENTIFIER`) selects
+  `"embedding"` (default, unchanged) / `"classical"` / `"ensemble"`.
+- 123 passed / 25 skipped (was 85 passed / 25 skipped) — see new
+  `tests/test_localize.py`, `tests/test_pipeline.py`, and additions to
+  `tests/test_frame_state.py` / `tests/test_identify.py`.
+
 See `CODE-DESIGN.md` for the per-file overview index.

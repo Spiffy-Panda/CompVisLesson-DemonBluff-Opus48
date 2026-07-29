@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -62,6 +63,13 @@ class Settings(BaseSettings):
         Minimum identification confidence to accept a card read as valid.
         Below this threshold the card is still included in the snapshot but
         its role_class / identity are "unknown".  Placeholder for future use.
+    identifier:
+        Which Stage 2 identifier the API lifespan should build and serve.
+        "embedding" (default, unchanged) -- the fine-tuned embedding-NN,
+        margin-gated.  "classical" -- the HSV-histogram baseline.
+        "ensemble" -- the opt-in classical+embedding composition layer
+        (``dbcv.identify.make_ensemble_identifier``), added 2026-07-29 per
+        plans/PLAN-live-capture.md Fix 3.  Set via ``DBCV_IDENTIFIER``.
     """
 
     model_config = SettingsConfigDict(
@@ -88,6 +96,16 @@ class Settings(BaseSettings):
             "Minimum confidence score for a card read to be treated as "
             "identified.  Below this threshold the read is kept in the "
             "snapshot but identity / role_class remain 'unknown'."
+        ),
+    )
+
+    identifier: Literal["embedding", "classical", "ensemble"] = Field(
+        default="embedding",
+        description=(
+            "Which Stage 2 identifier the API lifespan builds and serves. "
+            "'embedding' (default) is unchanged from before 2026-07-29. "
+            "'ensemble' opts into the classical+embedding composition layer "
+            "from plans/PLAN-live-capture.md Fix 3."
         ),
     )
 

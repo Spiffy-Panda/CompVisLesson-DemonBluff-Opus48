@@ -65,6 +65,27 @@ The technique is analogous to "integral image" region comparisons used in
 face detection (Viola-Jones, 2001) and modern saliency models: when a modal
 window is present, the center-of-mass of bright pixels shifts dramatically
 toward the image center.
+
+Kill-Mode red-tint detection (2026-07-29, plans/PLAN-live-capture.md)
+--------------------------------------------------------------------
+The `collect_02` live eval surfaced a UI variant not present in the sample
+videos: a full-frame red colour grade ("Kill Mode") that (a) causes the
+classical localizer's red HSV mask to fire on non-card red decoration (the
+center demon-altar statue) and (b) degrades identification reliability on
+every card in the frame.  ``measure_red_shift`` / ``is_red_tint`` below give
+a cheap, whole-frame signal for (b) -- see ``dbcv.pipeline.run_pipeline``'s
+``tint_fn`` parameter, which discounts and re-abstains low-confidence
+identifications while tint is active.  (a) is a deeper localizer-mask fix,
+not addressed by this signal -- see PLAN-live-capture.md's open items.
+
+The discriminator is the global mean of ``R - max(G, B)`` per pixel (BGR
+channels from cv2): a red-graded frame has every pixel's red channel pushed
+above green/blue, while a normal frame's red channel is not systematically
+dominant (this UI's normal palette leans green/teal/purple).  Measured on
+all 147 sampled frames across `collect_01` + `collect_02`: red-tinted frames
+scored 14.4 to 32.2; every other frame scored -16.9 to +0.5 -- a clean gap
+with no overlap.  ``_RED_TINT_THRESHOLD = 10.0`` sits in the middle of that
+gap.
 """
 
 from __future__ import annotations
@@ -110,6 +131,13 @@ _MODAL_RATIO_THRESHOLD: float = 2.0
 # None of the current labeled frames approach this threshold, but we gate
 # on 160 / 255 (very bright) to avoid false positives on modal frames.
 _MENU_BRIGHTNESS_THRESHOLD: float = 160.0
+
+# Threshold for the global red-shift (Kill-Mode tint) score, mean(R - max(G,B))
+# over the whole frame.  Measured on 147 live-captured frames (collect_01 +
+# collect_02, 2026-07-29): tinted frames scored 14.4-32.2, all other frames
+# scored -16.9 to +0.5.  10.0 sits in the middle of that gap with margin on
+# both sides.  See "Kill-Mode red-tint detection" in the module docstring.
+_RED_TINT_THRESHOLD: float = 10.0
 
 
 # ---------------------------------------------------------------------------
@@ -225,3 +253,61 @@ def classify_frame_state(image: np.ndarray) -> FrameState:
     # Default: board
     # ------------------------------------------------------------------
     return "board"
+
+
+# ---------------------------------------------------------------------------
+# Kill-Mode red-tint detection (2026-07-29, plans/PLAN-live-capture.md)
+# ---------------------------------------------------------------------------
+
+
+def measure_red_shift(image: np.ndarray) -> float:
+    """Return a cheap whole-frame red-tint score.
+
+    Computes ``mean(R - max(G, B))`` over every pixel in the frame (BGR
+    channel order, as produced by ``cv2.imread``/``cv2.imdecode``).  A frame
+    with no systematic red bias scores near zero or negative (this game's
+    normal palette leans green/teal/purple); a full-frame red colour grade
+    ("Kill Mode") pushes every pixel's red channel above its green/blue
+    channels, producing a large positive score.
+
+    Parameters
+    ----------
+    image:
+        Decoded frame, BGR, any resolution.  All pixels are used; there is
+        no resolution-specific geometry here (unlike the localizer/gate).
+
+    Returns
+    -------
+    float
+        The red-shift score.  See ``is_red_tint`` for the calibrated
+        threshold and the measured value ranges on real frames.
+    """
+    if image.ndim != 3 or image.shape[2] < 3:
+        return 0.0
+    bgr = image[:, :, :3].astype(np.float32)
+    b, g, r = bgr[:, :, 0], bgr[:, :, 1], bgr[:, :, 2]
+    return float(np.mean(r - np.maximum(g, b)))
+
+
+def is_red_tint(image: np.ndarray, threshold: float = _RED_TINT_THRESHOLD) -> bool:
+    """Return True if the frame shows the Kill-Mode red colour grade.
+
+    Thin wrapper around ``measure_red_shift`` with the calibrated default
+    threshold (10.0 -- see the module docstring's "Kill-Mode red-tint
+    detection" section for the measured gap).  Passed as the default
+    ``tint_fn`` to ``dbcv.pipeline.run_pipeline``.
+
+    Parameters
+    ----------
+    image:
+        Decoded frame, BGR, any resolution.
+    threshold:
+        Red-shift score at or above which the frame is considered tinted.
+        Defaults to the calibrated ``_RED_TINT_THRESHOLD``.
+
+    Returns
+    -------
+    bool
+        True if ``measure_red_shift(image) >= threshold``.
+    """
+    return measure_red_shift(image) >= threshold

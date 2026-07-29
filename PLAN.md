@@ -8,6 +8,7 @@ Index of per-slug plan files in `plans/PLAN-<slug>.md`. One line per entry. This
 - [PLAN-round2-dataset](plans/PLAN-round2-dataset.md) — mine + label real board crops from the sample videos; feeds margin calibration, face-down measurement, fine-tune round 2, and OCR validation.
 - [PLAN-stage3-ocr](plans/PLAN-stage3-ocr.md) — closed-vocab on-card/HUD text reading: region catalog, vocabulary, rendered training set, tiny recognizer + mobile-OCR fallback.
 - [PLAN-temporal-assembly](plans/PLAN-temporal-assembly.md) — Stage 4 design: temporal depth + REST contract options (research → decision memo → implementation).
+- [PLAN-live-capture](plans/PLAN-live-capture.md) — live-frame eval findings → pipeline fixes: HUD-zone widen (shipped), classical+embedding ensemble (shipped), gate-detection prototype (scrap only), embedding margin recalibration (deferred).
 
 ## Completed
 

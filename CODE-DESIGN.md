@@ -24,9 +24,13 @@ The map of `src/`. Read this and `CodeDocs/00_PROJECT.md` **before** opening any
 - Dev model tools (require torch): `utils/python/finetune_embedding.py` (generates the served
   fine-tuned model) and `utils/python/export_backbone.py` (generates the frozen baseline)
 
-**110 tests pass** (81 prior + 29 new Stage 0 frame-selection tests). Suite runtime **~25 s**
+**123 passed / 25 skipped** (was 110 tests / 81 prior + 29 Stage 0 frame-selection). Suite runtime **~15-20 s**
 (the embedding suite was made fast 2026-06-22 via process-level memoization of `build_gallery`,
 `OnnxEmbedder`, and `build_embedding_gallery`; see DEV-LOG entry 2026-06-22 for rationale).
+**2026-07-29:** +38 tests for the live-eval fixes (`plans/PLAN-live-capture.md`) — HUD-zone
+masking/recall (`tests/test_localize.py`), Kill-Mode red-tint detection (additions to
+`tests/test_frame_state.py`), the ensemble combiner (additions to `tests/test_identify.py`),
+and the tint-discount pipeline wiring (`tests/test_pipeline.py`).
 
 Source overviews live under `CodeDocs/sources/dbcv/`:
 - [`schema.md`](sources/dbcv/schema.md) — Pydantic v2 models (`GameStateSnapshot`, etc.)

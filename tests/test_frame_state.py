@@ -26,11 +26,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import cv2
+import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
 from dbcv.api import app
-from dbcv.frame_state import classify_frame_state
+from dbcv.frame_state import classify_frame_state, is_red_tint, measure_red_shift
 from dbcv.schema import GameStateSnapshot
 
 # ---------------------------------------------------------------------------
@@ -136,6 +137,60 @@ def test_partial_modal_documented_handling() -> None:
 #   Full modal frames (3 frames):     3/3 correct  (100 %)
 #   Partial modal (1 frame):          1/1 documented-correct ("board")
 #   Overall (7 firm + 1 documented):  7/7 classification, 8/8 documented
+
+
+# ---------------------------------------------------------------------------
+# Kill-Mode red-tint detection (2026-07-29, plans/PLAN-live-capture.md Fix 1)
+# ---------------------------------------------------------------------------
+#
+# Synthetic frames only (no dataset/ dependency, so these run unconditionally).
+# The calibrated gap from real frames (147 sampled across collect_01 +
+# collect_02): tinted 14.4-32.2, normal -16.9 to +0.5.  These synthetic
+# frames use exaggerated colours to sit clearly on each side of that gap.
+
+
+def test_measure_red_shift_neutral_frame_is_near_zero() -> None:
+    """A neutral grey frame (R == G == B everywhere) scores ~0."""
+    img = np.full((360, 640, 3), 128, dtype=np.uint8)   # BGR, all channels equal
+    score = measure_red_shift(img)
+    assert abs(score) < 1.0, f"Neutral grey frame scored {score}, expected ~0."
+
+
+def test_measure_red_shift_green_frame_is_negative() -> None:
+    """A green-dominant frame (this game's normal palette) scores negative."""
+    img = np.zeros((360, 640, 3), dtype=np.uint8)
+    img[:, :, 1] = 150   # BGR: green channel only
+    score = measure_red_shift(img)
+    assert score < 0.0, f"Green-dominant frame scored {score}, expected < 0."
+
+
+def test_measure_red_shift_red_tinted_frame_is_strongly_positive() -> None:
+    """A red-dominant frame (Kill-Mode style tint) scores strongly positive."""
+    img = np.zeros((360, 640, 3), dtype=np.uint8)
+    img[:, :, 2] = 180   # BGR: red channel only
+    score = measure_red_shift(img)
+    assert score >= 30.0, f"Red-tinted frame scored {score}, expected a large positive score."
+
+
+def test_is_red_tint_false_on_normal_frame() -> None:
+    img = np.zeros((360, 640, 3), dtype=np.uint8)
+    img[:, :, 1] = 150
+    assert is_red_tint(img) is False
+
+
+def test_is_red_tint_true_on_tinted_frame() -> None:
+    img = np.zeros((360, 640, 3), dtype=np.uint8)
+    img[:, :, 2] = 180
+    assert is_red_tint(img) is True
+
+
+def test_is_red_tint_respects_custom_threshold() -> None:
+    """A borderline frame flips classification when the threshold is moved."""
+    img = np.zeros((360, 640, 3), dtype=np.uint8)
+    img[:, :, 2] = 20   # small, deliberately borderline red bias
+    score = measure_red_shift(img)
+    assert is_red_tint(img, threshold=score + 1.0) is False
+    assert is_red_tint(img, threshold=score - 1.0) is True
 
 
 # ---------------------------------------------------------------------------
