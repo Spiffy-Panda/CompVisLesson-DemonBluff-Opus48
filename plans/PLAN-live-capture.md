@@ -112,9 +112,17 @@ Six candidate signals measured (reusing `frame_state.py`'s center/ring geometry 
 - [x] DEV-LOG entry.
 - [x] Commit.
 
-## Promotion question for the scrap capture/eval scripts (pending, not resolved this wave)
+## Promotion question for the scrap capture/eval scripts (partially resolved 2026-07-29)
 
-`scrap_scripts/python/01`–`10` (capture, click, launch, frame-grab, title-bar-crop, three eval runners, and the gate-signal probe) are still gitignored scrap. None of them are yet depended on by anything other than a human/agent at the CLI (Rule 1's promotion trigger), so none are promoted this wave. Worth revisiting once a live-capture CLI workflow stabilizes enough to be worth a `utils/python/` home + `utils/README.md` entry — flagged here for the next session, not resolved.
+**Resolved for the frame grabber:** `04_grab_frame.py` was promoted to `utils/python/grab_frame.py` (2026-07-29, session-recording wave) — the live-capture workflow stabilized around it, and it now shares its hardened window-finding/DPI code with the new recorder. Note: `git mv` was impossible (scrap is gitignored, so the file was never tracked); it was moved on the filesystem and is newly tracked at the destination. The new continuous session recorder `utils/python/record_session.py` went **straight to utils** (no scrap phase — dataset collection depends on it from day one, so Rule 1's promotion trigger was met at birth). Both are cataloged in `utils/README.md`.
+
+**Still scrap:** `01`–`03`, `05`–`16` (capture/click/launch spikes, title-bar crop, eval runners, gate-signal probe, crop miners, inspectors) plus the new `17_record_session_selftest.py` — none yet depended on by anything other than a human/agent at the CLI.
+
+### Session recording (added 2026-07-29)
+
+Long continuous video recording now replaces discrete per-action PNG grabs as the primary live-collection mode: `utils/python/record_session.py` records 30–60 min sessions to constant-frame-rate mp4 (+ `frames.jsonl`/`session.json` timestamp sidecars) under `dataset/live_<UTC>/`, consumed by Stage 0 (`frame_select.py`) exactly like the sample videos. CFR means an action log's wall-clock timestamps map to frame indices by pure arithmetic (`frame_index = round((wall - cfr_epoch_wall) * fps)`), which is the intended path for weak temporal labels (gate detection / Stage 4 temporal fusion) and for closing the tint-crop gap the conservative `live_crops_v1` miner had to skip.
+
+**Note for the human operator — record for COVERAGE, not just duration.** The documented dataset gaps (DEV-LOG 2026-07-29, `live_crops_v1`): zero Kill-Mode-tinted crops; thin Chancellor (1), Witch (3), Lilis (3) representation; and eleven identities never seen at all (Alchemist, Baker, Bard, Doppelganger, Drunk, Lycanthrope, Plague_Doctor, Pooka, Werewolf, Witness, Twin_Minion-as-literal). Several shorter games beat one long one for rare-role coverage; continuous video + a synchronized event log is expected to close the tint gap that the crop miner's label-safety rule excluded.
 
 ## Open items carried forward
 
