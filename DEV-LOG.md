@@ -16,6 +16,20 @@ Append-only decision log. **Newest entry on top.** Absolute dates. Git commits r
 
 ---
 
+## 2026-07-30 — Recorder live smoke test: finalize-before-native-stop fix; observability traps
+
+**Context:** First live runs of `record_session.py` (during play-agent legs 24–26). Three recordings in a row ended with a 0.5 GB mp4 missing its moov atom and **no `session.json`** — unplayable, unfinalized — while the synthetic self-test stayed green.
+
+**Root cause:** stopping the WGC session (`capture_control.stop()` in the frame callback) can terminate the **whole process** from the native side — no traceback, `finally`/`atexit` never run — so the `writer.close()` in `main()`'s `finally` never executed on any real run. The self-test simulates frames and never exercises a real native stop, which is why 27/27 passed while every live run lost its finalization.
+
+**Choice:** finalize first, stop second. `writer.close()` (flush queue → release encoder → write `session.json`; already idempotent) is now called in all three stop paths (`--duration` expiry, Ctrl+C, window-closed) *before* `stop_event` lets the callback stop the native session; `submit()` gained a closed-guard. Validated live: a 150 s run during active gameplay exited 0 with a **playable** 4,507-frame mp4 and full `session.json` (capture measured 44.7 fps, CFR 30 output, dup 8 / cfr-drop 2209 / queue-drop 4).
+
+**Notes / risks:**
+- Measured size: ~12.5 GB/hour at 720p30 on this box (session.json reports codec `avc1` and the file decodes, despite the OpenH264 stderr spew — treat that spew as non-fatal noise). Still worth dropping the OpenH264 DLL for hour-long sessions.
+- **Observability traps that cost two good recordings** (killed on false evidence): NTFS directory listings show a stale (0-byte) size for files held open — the only honest liveness probe is opening the file and reading the handle's length; process `WriteTransferCount` also stayed 0 during healthy multi-hundred-MB writes; and the recorder's own `[ok]`/progress prints are block-buffered when stdout is redirected (consider line-flushing prints).
+- WGC is event-driven: a fully static screen delivers no frames, so a recorder started over an idle menu sits at zero until gameplay causes screen changes — not a hang.
+- `dataset/live_*/` was untracked-but-not-ignored (footage could land in a careless `git add -A`); now gitignored.
+
 ## 2026-07-29 — Continuous session recording (`utils/python/record_session.py`) + `grab_frame.py` promotion
 
 **Context:** All live collection so far has been discrete per-action PNG grabs (`04_grab_frame.py`), and everything trained/evaluated before that leans on the two YouTube-sourced sample videos (v0.389-era — footage-version drift). To get off both, we now record long (30–60 min) continuous video of current-version live gameplay: video is what Stage 0 (`frame_select.py`) already consumes, and continuous footage with per-frame timestamps is the raw material for weak temporal labels (gate detection, Stage 4 temporal fusion) and for closing `live_crops_v1`'s known gaps (zero Kill-Mode-tinted crops, thin rare-role coverage).

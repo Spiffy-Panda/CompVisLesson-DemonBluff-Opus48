@@ -66,3 +66,6 @@ Thumbs.db
 
 # Claude Code machine-local settings (keep out of the public repo)
 .claude/settings.local.json
+
+# --- live continuous recordings (large mp4 footage + sidecars) -------------
+dataset/live_*/

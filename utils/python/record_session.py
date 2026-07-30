@@ -290,6 +290,8 @@ class SessionWriter:
         already a private copy) for CFR encoding. Never blocks. Returns True
         if queued.
         """
+        if self._closed:
+            return False
         if self.max_fps is not None and self._last_accept_mono is not None:
             if (t_mono - self._last_accept_mono) < (1.0 / self.max_fps):
                 self.thinned_frames += 1
@@ -518,6 +520,11 @@ def record_live(hwnd, writer: SessionWriter, duration: float | None) -> int:
     @capture.event
     def on_closed():
         print("[info] game window closed — stopping capture.")
+        # Finalize outputs BEFORE the native session tears down: stopping the
+        # windows-capture session can terminate the whole process (observed
+        # live 2026-07-30: no traceback, atexit/finally never ran), so the
+        # mp4 moov atom and session.json must already be on disk by then.
+        writer.close()
         closed_event.set()
         stop_event.set()
 
@@ -535,6 +542,9 @@ def record_live(hwnd, writer: SessionWriter, duration: float | None) -> int:
             now = time.perf_counter()
             if duration is not None and (now - t0) >= duration:
                 print(f"[info] --duration {duration:g}s reached — stopping capture.")
+                # Close (finalize mp4 + session.json) BEFORE signalling the
+                # capture callback to stop the native session — see on_closed.
+                writer.close()
                 stop_event.set()
             if now - last_report >= 10.0:
                 last_report = now
@@ -543,6 +553,7 @@ def record_live(hwnd, writer: SessionWriter, duration: float | None) -> int:
             time.sleep(0.25)
     except KeyboardInterrupt:
         print("[info] Ctrl+C — stopping capture.")
+        writer.close()  # finalize before the native session stops — see on_closed
         stop_event.set()
 
     # The callback stops the session on the next arriving frame; if no frames
